@@ -1,0 +1,35 @@
+{
+  "name": "contest",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broadsw0rd/contest.git"
+  },
+  "author": {
+    "name": "Vladimir Bykov",
+    "email": "broadsw.rd@yandex.ru",
+    "url": "https://github.com/broadsw0rd"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/broadsw0rd/contest/issues"
+  },
+  "homepage": "https://github.com/broadsw0rd/contest#readme",
+  "devDependencies": {
+    "clean-css-cli": "^4.2.1",
+    "rollup": "^1.6.0",
+    "rollup-plugin-buble": "^0.19.6",
+    "snazzy": "^8.0.0",
+    "standard": "^12.0.1",
+    "uglify-js": "^3.4.9"
+  },
+  "umd": "dist/app.umd.js",
+  "scripts": {
+    "check": "standard src/*.js | snazzy",
+    "build": "rollup -c",
+    "min": "uglifyjs dist/app.umd.js -c -m > dist/app.min.js",
+    "css": "cleancss -o dist/styles.min.css css/styles.css"
+  }
+}
