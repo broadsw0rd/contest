@@ -39,63 +39,36 @@
 
   var document$1 = window.document;
 
-  var create = function (name) { return document$1.createElement(name); };
-
-  var text = function (node, text) { return (node.textContent = text); };
-
-  var append = function (node, child) { return node.appendChild(child); };
-
-  var addClass = function (node, name) { return node.classList.add(name); };
-
-  var style = function (node, name, value) { return (node.style[name] = value); };
-
-  var attr = function (node, name, value) { return node.setAttribute(name, value); };
-
   var View = function View (root, chart) {
     this.root = root;
-    this.el = create('div');
-    this.canvas = create('canvas');
+    this.el = document$1.createElement('div');
     this.chart = chart;
+    this.render();
+    this.canvas = this.el.querySelector('canvas');
   };
 
   View.prototype.render = function render () {
-    var container = create('div');
-    addClass(container, 'cell');
-    addClass(container, 'canvas');
+    var body = [
+      "<div class=\"cell canvas\"><canvas></canvas></div>",
+      this.chart.series.map(this.renderSeries, this).join('')
+    ].join('');
 
-    append(container, this.canvas);
-    append(this.el, container);
+    this.el.classList.add('chart');
+    this.el.innerHTML = body;
 
-    this.chart.series.forEach(this.renderSeries, this);
-
-    addClass(this.el, 'chart');
-    append(this.root, this.el);
+    this.root.appendChild(this.el);
   };
 
   View.prototype.renderSeries = function renderSeries (series) {
-    var container = create('div');
-    addClass(container, 'cell');
-
-    var label = create('label');
-
-    var input = create('input');
-    attr(input, 'type', 'checkbox');
-    input.checked = series.active;
-
-    var icon = create('span');
-    addClass(icon, 'icon');
-    style(icon, 'color', series.color);
-
-    var txt = create('span');
-    addClass(txt, 'text');
-    text(txt, series.name);
-
-    append(container, label);
-    append(label, input);
-    append(label, icon);
-    append(label, txt);
-
-    append(this.el, container);
+    return [
+      "<div class=\"cell\">",
+      "<label>",
+      "<input type=\"checkbox\" checked/>",
+      ("<span class=\"icon\" style=\"color:" + (series.color) + "\"></span>"),
+      ("<span class=\"text\">" + (series.name) + "</span>"),
+      "</label>",
+      "</div>"
+    ].join('')
   };
 
   var requestAnimationFrame = window.requestAnimationFrame;

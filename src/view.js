@@ -1,51 +1,36 @@
-import * as dom from './dom.js'
+var document = window.document
 
 class View {
   constructor (root, chart) {
     this.root = root
-    this.el = dom.create('div')
-    this.canvas = dom.create('canvas')
+    this.el = document.createElement('div')
     this.chart = chart
+    this.render()
+    this.canvas = this.el.querySelector('canvas')
   }
 
   render () {
-    var container = dom.create('div')
-    dom.addClass(container, 'cell')
-    dom.addClass(container, 'canvas')
+    var body = [
+      `<div class="cell canvas"><canvas></canvas></div>`,
+      this.chart.series.map(this.renderSeries, this).join('')
+    ].join('')
 
-    dom.append(container, this.canvas)
-    dom.append(this.el, container)
+    this.el.classList.add('chart')
+    this.el.innerHTML = body
 
-    this.chart.series.forEach(this.renderSeries, this)
-
-    dom.addClass(this.el, 'chart')
-    dom.append(this.root, this.el)
+    this.root.appendChild(this.el)
   }
 
   renderSeries (series) {
-    var container = dom.create('div')
-    dom.addClass(container, 'cell')
-
-    var label = dom.create('label')
-
-    var input = dom.create('input')
-    dom.attr(input, 'type', 'checkbox')
-    input.checked = series.active
-
-    var icon = dom.create('span')
-    dom.addClass(icon, 'icon')
-    dom.style(icon, 'color', series.color)
-
-    var txt = dom.create('span')
-    dom.addClass(txt, 'text')
-    dom.text(txt, series.name)
-
-    dom.append(container, label)
-    dom.append(label, input)
-    dom.append(label, icon)
-    dom.append(label, txt)
-
-    dom.append(this.el, container)
+    return [
+      `<div class="cell">`,
+      `<label>`,
+      `<input type="checkbox" checked/>`,
+      `<span class="icon" style="color:${series.color}"></span>`,
+      `<span class="text">${series.name}</span>`,
+      `</label>`,
+      `</div>`
+    ].join('')
   }
 }
 

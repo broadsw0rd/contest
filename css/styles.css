@@ -97,3 +97,20 @@ input:checked + .icon:after {
 .text {
   margin-left: 8px;
 }
+
+.dark {
+  background: #242f3e;
+  color: #ecedee;
+}
+
+.dark label {
+  border-color: #2b394a;
+}
+
+.dark .icon:before {
+  background: #242f3e;
+}
+
+.dark canvas {
+  background: #1f2a39;
+}
