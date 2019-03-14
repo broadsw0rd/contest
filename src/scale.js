@@ -14,13 +14,13 @@ class Scale {
     this.domain = []
   }
 
-  setRange (range) {
-    this.range = range.slice()
+  setRange (from, to) {
+    this.range = [from, to]
     return this
   }
 
-  setDomain (domain) {
-    this.domain = domain.slice()
+  setDomain (from, to) {
+    this.domain = [from, to]
     return this
   }
 

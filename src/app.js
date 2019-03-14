@@ -1,8 +1,7 @@
 import Series from './series.js'
 import Chart from './chart.js'
 import View from './view.js'
-
-var requestAnimationFrame = window.requestAnimationFrame
+import Renderer from './renderer.js'
 
 class App {
   constructor (element) {
@@ -10,13 +9,15 @@ class App {
     this.charts = []
     this.views = []
     this.renderers = []
+    this.prevTime = 0
   }
 
   addChart (chart) {
     var view = new View(this.element, chart)
+    var renderer = new Renderer(view.canvas, chart)
     this.charts.push(chart)
     this.views.push(view)
-    view.render()
+    this.renderers.push(renderer)
   }
 
   load () {
@@ -24,7 +25,6 @@ class App {
     xhr.open('GET', './data/chart_data.json')
     xhr.onload = () => {
       this.parse(JSON.parse(xhr.response))
-      this.render()
     }
     xhr.send()
   }
@@ -52,12 +52,12 @@ class App {
     })
   }
 
-  render () {
-
-  }
-
-  digest (t = 0) {
-    requestAnimationFrame(t => this.digest(t))
+  digest (time) {
+    this.prevTime = this.prevTime || time
+    for (var i = 0; i < this.renderers.length; i++) {
+      this.renderers[i].redraw(time - this.prevTime)
+    }
+    this.prevTime = time
   }
 }
 

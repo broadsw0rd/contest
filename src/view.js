@@ -11,7 +11,7 @@ class View {
 
   render () {
     var body = [
-      `<div class="cell canvas"><canvas></canvas></div>`,
+      `<div class="cell container"><div class="canvas"><canvas></canvas></div></div>`,
       this.chart.series.map(this.renderSeries, this).join('')
     ].join('')
 
