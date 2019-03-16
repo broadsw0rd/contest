@@ -11,18 +11,16 @@
     this.color = options.color || '#000';
     this.yData = options.yData || [];
     this.active = options.active || true;
-    this.chart = options.chart || null;
+    this.graph = options.graph || null;
   };
 
   Series.prototype.setActive = function setActive (active) {
     this.active = active;
   };
 
-  Series.prototype.setChart = function setChart (chart) {
-    this.chart = chart;
+  Series.prototype.setChart = function setChart (graph) {
+    this.graph = graph;
   };
-
-  // https://github.com/d3/d3-scale
 
   function normalize (x, a, b) {
     return (x - a) / (b - a)
@@ -73,7 +71,7 @@
     return interpolate(d0, d1, t)
   };
 
-  var Chart = function Chart () {
+  var Graph = function Graph () {
     this.xData = [];
     this.series = [];
     this.seriesIndex = {};
@@ -81,19 +79,19 @@
     this.yScale = new Scale();
   };
 
-  Chart.prototype.addSeries = function addSeries (series) {
+  Graph.prototype.addSeries = function addSeries (series) {
     series.setChart(this);
     this.series.push(series);
     this.seriesIndex[series.name] = series;
     this.updateYExremes(series);
   };
 
-  Chart.prototype.setXData = function setXData (data) {
+  Graph.prototype.setXData = function setXData (data) {
     this.xData = data;
     this.xScale.setDomain(data[0], data[data.length - 1]);
   };
 
-  Chart.prototype.updateYExremes = function updateYExremes (series) {
+  Graph.prototype.updateYExremes = function updateYExremes (series) {
     var yData = series.yData;
     var yScale = this.yScale;
     var min = yScale.domain[0];
@@ -107,28 +105,31 @@
 
       if (datum < min) {
         min = datum;
-      } else if (datum > max ) {
+      } else if (datum > max) {
         max = datum;
       }
     }
 
-    yScale.setDomain(min, max);
+    var range = max - min;
+    var padding = range * 0.1;
+
+    yScale.setDomain(min - padding, max + padding);
   };
 
   var document$1 = window.document;
 
-  var View = function View (root, chart) {
+  var View = function View (root, graph) {
     this.root = root;
     this.el = document$1.createElement('div');
-    this.chart = chart;
+    this.graph = graph;
     this.render();
     this.canvas = this.el.querySelector('canvas');
   };
 
   View.prototype.render = function render () {
     var body = [
-      "<div class=\"cell container\"><div class=\"canvas\"><canvas></canvas></div></div>",
-      this.chart.series.map(this.renderSeries, this).join('')
+      "<div class=\"cell container\"><div class=\"graph\"><canvas></canvas></div></div>",
+      this.graph.series.map(this.renderSeries, this).join('')
     ].join('');
 
     this.el.classList.add('chart');
@@ -151,10 +152,10 @@
 
   var pixelRatio = window.devicePixelRatio || 1;
 
-  var Renderer = function Renderer (canvas, chart) {
+  var Renderer = function Renderer (canvas, graph) {
     this.ctx = canvas.getContext('2d');
     this.el = canvas.parentNode;
-    this.chart = chart;
+    this.graph = graph;
   };
 
   Renderer.prototype.clear = function clear () {
@@ -179,19 +180,19 @@
       this.ctx.scale(pixelRatio, pixelRatio);
       this.ctx.translate(0.5, 0.5);
 
-      this.chart.yScale.setRange(this.height, 0);
-      this.chart.xScale.setRange(0, this.width);
+      this.graph.yScale.setRange(this.height, 0);
+      this.graph.xScale.setRange(0, this.width);
 
       this.inQueue = true;
     }
   };
 
   Renderer.prototype.draw = function draw () {
-    var chart = this.chart;
-    var series = chart.series;
-    var xData = chart.xData;
-    var xScale = chart.xScale;
-    var yScale = chart.yScale;
+    var graph = this.graph;
+    var series = graph.series;
+    var xData = graph.xData;
+    var xScale = graph.xScale;
+    var yScale = graph.yScale;
     var ctx = this.ctx;
 
     for (var i = 0; i < series.length; i++) {
@@ -223,20 +224,24 @@
     }
   };
 
+  var Chart = function Chart (element, graph) {
+    this.graph = graph;
+    this.view = new View(element, graph);
+    this.renderer = new Renderer(this.view.canvas, graph);
+  };
+
+  Chart.prototype.redraw = function redraw (dt) {
+    this.renderer.redraw();
+  };
+
   var App = function App (element) {
     this.element = element;
     this.charts = [];
-    this.views = [];
-    this.renderers = [];
     this.prevTime = 0;
   };
 
   App.prototype.addChart = function addChart (chart) {
-    var view = new View(this.element, chart);
-    var renderer = new Renderer(view.canvas, chart);
     this.charts.push(chart);
-    this.views.push(view);
-    this.renderers.push(renderer);
   };
 
   App.prototype.load = function load () {
@@ -254,23 +259,25 @@
       var this$1 = this;
 
     response.forEach(function (row) {
-      var chart = new Chart();
+      var graph = new Graph();
 
       row.columns.forEach(function (col) {
         var id = col[0];
           var data = col.slice(1);
 
         if (row.types[id] === 'x') {
-          chart.setXData(data);
+          graph.setXData(data);
         } else {
           var series = new Series({
             name: row.names[id],
             color: row.colors[id],
             yData: data
           });
-          chart.addSeries(series);
+          graph.addSeries(series);
         }
       });
+
+      var chart = new Chart(this$1.element, graph);
 
       this$1.addChart(chart);
     });
@@ -278,8 +285,8 @@
 
   App.prototype.digest = function digest (time) {
     this.prevTime = this.prevTime || time;
-    for (var i = 0; i < this.renderers.length; i++) {
-      this.renderers[i].redraw(time - this.prevTime);
+    for (var i = 0; i < this.charts.length; i++) {
+      this.charts[i].redraw(time - this.prevTime);
     }
     this.prevTime = time;
   };

@@ -4,15 +4,15 @@ class Series {
     this.color = options.color || '#000'
     this.yData = options.yData || []
     this.active = options.active || true
-    this.chart = options.chart || null
+    this.graph = options.graph || null
   }
 
   setActive (active) {
     this.active = active
   }
 
-  setChart (chart) {
-    this.chart = chart
+  setChart (graph) {
+    this.graph = graph
   }
 }
 

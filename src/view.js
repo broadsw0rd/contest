@@ -1,18 +1,18 @@
 var document = window.document
 
 class View {
-  constructor (root, chart) {
+  constructor (root, graph) {
     this.root = root
     this.el = document.createElement('div')
-    this.chart = chart
+    this.graph = graph
     this.render()
     this.canvas = this.el.querySelector('canvas')
   }
 
   render () {
     var body = [
-      `<div class="cell container"><div class="canvas"><canvas></canvas></div></div>`,
-      this.chart.series.map(this.renderSeries, this).join('')
+      `<div class="cell container"><div class="graph"><canvas></canvas></div></div>`,
+      this.graph.series.map(this.renderSeries, this).join('')
     ].join('')
 
     this.el.classList.add('chart')

@@ -1,10 +1,10 @@
 var pixelRatio = window.devicePixelRatio || 1
 
 class Renderer {
-  constructor (canvas, chart) {
+  constructor (canvas, graph) {
     this.ctx = canvas.getContext('2d')
     this.el = canvas.parentNode
-    this.chart = chart
+    this.graph = graph
   }
 
   clear () {
@@ -29,19 +29,19 @@ class Renderer {
       this.ctx.scale(pixelRatio, pixelRatio)
       this.ctx.translate(0.5, 0.5)
 
-      this.chart.yScale.setRange(this.height, 0)
-      this.chart.xScale.setRange(0, this.width)
+      this.graph.yScale.setRange(this.height, 0)
+      this.graph.xScale.setRange(0, this.width)
 
       this.inQueue = true
     }
   }
 
   draw () {
-    var chart = this.chart
-    var series = chart.series
-    var xData = chart.xData
-    var xScale = chart.xScale
-    var yScale = chart.yScale
+    var graph = this.graph
+    var series = graph.series
+    var xData = graph.xData
+    var xScale = graph.xScale
+    var yScale = graph.yScale
     var ctx = this.ctx
 
     for (var i = 0; i < series.length; i++) {

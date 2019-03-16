@@ -1,5 +1,3 @@
-// https://github.com/d3/d3-scale
-
 function normalize (x, a, b) {
   return (x - a) / (b - a)
 }
