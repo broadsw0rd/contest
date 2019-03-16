@@ -1,10 +1,11 @@
 var pixelRatio = window.devicePixelRatio || 1
 
 class Renderer {
-  constructor (canvas, graph) {
+  constructor (canvas, navigation) {
     this.ctx = canvas.getContext('2d')
     this.el = canvas.parentNode
-    this.graph = graph
+    this.navigation = navigation
+    this.graph = navigation.graph
   }
 
   clear () {
@@ -29,23 +30,34 @@ class Renderer {
       this.ctx.scale(pixelRatio, pixelRatio)
       this.ctx.translate(0.5, 0.5)
 
-      this.graph.yScale.setRange(this.height, 0)
-      this.graph.xScale.setRange(0, this.width)
+      var navHeight = this.height * 0.1
 
-      this.inQueue = true
+      this.graph.yScale.setRange(this.height - navHeight, 0)
+      this.navigation.yScale.setRange(this.height, this.height - navHeight)
+
+      this.graph.xScale.setRange(0, this.width)
+      this.navigation.xScale.setRange(0, this.width)
+
+      this.enqueue()
     }
   }
 
   draw () {
     var graph = this.graph
+    var navigation = this.navigation
     var series = graph.series
     var xData = graph.xData
     var xScale = graph.xScale
     var yScale = graph.yScale
+    var navXScale = navigation.xScale
+    var navYScale = navigation.yScale
     var ctx = this.ctx
 
     for (var i = 0; i < series.length; i++) {
       var current = series[i]
+
+      if (!current.active) continue
+
       var yData = current.yData
 
       if (xData.length) {
@@ -57,12 +69,20 @@ class Renderer {
         ctx.lineTo(xScale.get(xData[j]), yScale.get(yData[j]))
       }
 
+      if (xData.length) {
+        ctx.moveTo(navXScale.get(xData[0]), navYScale.get(yData[0]))
+      }
+
+      for (j = 1; j < xData.length; j++) {
+        ctx.lineTo(navXScale.get(xData[j]), navYScale.get(yData[j]))
+      }
+
       ctx.strokeStyle = current.color
       ctx.lineWidth = 2
       ctx.stroke()
     }
 
-    this.inQueue = false
+    this.dequeue()
   }
 
   redraw () {
@@ -71,6 +91,14 @@ class Renderer {
       this.clear()
       this.draw()
     }
+  }
+
+  enqueue () {
+    this.inQueue = true
+  }
+
+  dequeue () {
+    this.inQueue = false
   }
 }
 

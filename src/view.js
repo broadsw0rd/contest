@@ -25,7 +25,7 @@ class View {
     return [
       `<div class="cell">`,
       `<label>`,
-      `<input type="checkbox" checked/>`,
+      `<input type="checkbox" name="${series.name}" checked/>`,
       `<span class="icon" style="color:${series.color}"></span>`,
       `<span class="text">${series.name}</span>`,
       `</label>`,
