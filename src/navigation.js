@@ -33,7 +33,11 @@ class Navigation {
     var max
 
     for (var i = 0; i < series.length; i++) {
-      var yData = series[i].yData
+      var current = series[i]
+
+      if (!current.active) continue
+
+      var yData = current.yData
       for (var j = 0; j < xData.length; j++) {
         var xDatum = xData[j]
         if (xDatum >= start && xDatum <= end) {

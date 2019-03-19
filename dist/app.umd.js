@@ -154,59 +154,16 @@
       this.ctx.scale(pixelRatio, pixelRatio);
       this.ctx.translate(0.5, 0.5);
 
-      var navHeight = this.height * 0.1;
+      var navHeight = this.height * 0.15;
 
       this.graph.yScale.setRange(this.height - navHeight, 0);
-      this.navigation.yScale.setRange(this.height, this.height - navHeight);
+      this.navigation.yScale.setRange(this.height - 2, this.height - navHeight);
 
-      this.graph.xScale.setRange(0, this.width);
-      this.navigation.xScale.setRange(0, this.width);
+      this.graph.xScale.setRange(0, this.width - 2);
+      this.navigation.xScale.setRange(0, this.width - 2);
 
       this.enqueue();
     }
-  };
-
-  Renderer.prototype.draw = function draw () {
-    var graph = this.graph;
-    var navigation = this.navigation;
-    var series = graph.series;
-    var xData = graph.xData;
-    var xScale = graph.xScale;
-    var yScale = graph.yScale;
-    var navXScale = navigation.xScale;
-    var navYScale = navigation.yScale;
-    var ctx = this.ctx;
-
-    for (var i = 0; i < series.length; i++) {
-      var current = series[i];
-
-      if (!current.active) { continue }
-
-      var yData = current.yData;
-
-      if (xData.length) {
-        ctx.beginPath();
-        ctx.moveTo(xScale.get(xData[0]), yScale.get(yData[0]));
-      }
-
-      for (var j = 1; j < xData.length; j++) {
-        ctx.lineTo(xScale.get(xData[j]), yScale.get(yData[j]));
-      }
-
-      if (xData.length) {
-        ctx.moveTo(navXScale.get(xData[0]), navYScale.get(yData[0]));
-      }
-
-      for (j = 1; j < xData.length; j++) {
-        ctx.lineTo(navXScale.get(xData[j]), navYScale.get(yData[j]));
-      }
-
-      ctx.strokeStyle = current.color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-
-    this.dequeue();
   };
 
   Renderer.prototype.redraw = function redraw () {
@@ -223,6 +180,116 @@
 
   Renderer.prototype.dequeue = function dequeue () {
     this.inQueue = false;
+  };
+
+  Renderer.prototype.draw = function draw () {
+    this.drawNav();
+    this.drawSeries();
+    this.drawOverlay();
+
+    this.dequeue();
+  };
+
+  Renderer.prototype.drawSeries = function drawSeries () {
+    var ctx = this.ctx;
+    var graph = this.graph;
+    var navigation = this.navigation;
+    var offset = navigation.offset;
+    var range = navigation.range;
+    var series = graph.series;
+    var xData = graph.xData;
+    var xScale = graph.xScale;
+    var yScale = graph.yScale;
+    var navXScale = navigation.xScale;
+    var navYScale = navigation.yScale;
+    var start;
+    var end;
+
+    for (var i = 0; i < series.length; i++) {
+      var current = series[i];
+
+      if (!current.active) { continue }
+
+      var yData = current.yData;
+
+      if (xData.length) {
+        ctx.beginPath();
+        ctx.moveTo(navXScale.get(xData[0]), navYScale.get(yData[0]));
+      }
+
+      for (var j = 1; j < xData.length; j++) {
+        var xDatum = xData[j];
+        ctx.lineTo(navXScale.get(xDatum), navYScale.get(yData[j]));
+
+        if (start == null && xDatum >= offset) {
+          start = j - 1;
+        }
+
+        if (end == null && xDatum >= offset + range) {
+          end = j + 1;
+        }
+      }
+
+      if (xData.length) {
+        ctx.moveTo(xScale.get(xData[start]), yScale.get(yData[start]));
+      }
+
+      for (j = start + 1; j <= end; j++) {
+        ctx.lineTo(xScale.get(xData[j]), yScale.get(yData[j]));
+      }
+
+      ctx.strokeStyle = current.color;
+      ctx.stroke();
+    }
+  };
+
+  Renderer.prototype.drawNav = function drawNav () {
+    var ctx = this.ctx;
+    var navigation = this.navigation;
+    var xScale = navigation.xScale;
+    var yScale = navigation.yScale;
+    var offset = navigation.offset;
+    var range = navigation.range;
+    var x0 = xScale.get(offset);
+    var x1 = xScale.get(offset + range);
+    var ref = yScale.range;
+      var y1 = ref[0];
+      var y0 = ref[1];
+    var height = y1 - y0;
+
+    // window
+    ctx.strokeStyle = '#ddeaf3';
+    ctx.lineWidth = 2;
+
+    ctx.strokeRect(x0, y0 + 1, x1 - x0, height - 2);
+
+    // handles
+    ctx.fillStyle = '#ddeaf3';
+    ctx.beginPath();
+    ctx.rect(x0, y0, 6, height);
+    ctx.rect(x1 - 6, y0, 6, height);
+    ctx.fill();
+  };
+
+  Renderer.prototype.drawOverlay = function drawOverlay () {
+    var ctx = this.ctx;
+    var navigation = this.navigation;
+    var xScale = navigation.xScale;
+    var yScale = navigation.yScale;
+    var offset = navigation.offset;
+    var range = navigation.range;
+    var x0 = xScale.get(offset);
+    var x1 = xScale.get(offset + range);
+    var ref = yScale.range;
+      var y1 = ref[0];
+      var y0 = ref[1];
+    var height = y1 - y0;
+
+    ctx.fillStyle = 'rgba(245, 249, 251, 0.8)';
+    ctx.beginPath();
+    ctx.rect(0, y0, x0, height);
+    ctx.rect(x1, y0, xScale.range[1] - x1, height);
+    ctx.fill();
   };
 
   var Navigation = function Navigation (graph) {
@@ -257,7 +324,11 @@
     var max;
 
     for (var i = 0; i < series.length; i++) {
-      var yData = series[i].yData;
+      var current = series[i];
+
+      if (!current.active) { continue }
+
+      var yData = current.yData;
       for (var j = 0; j < xData.length; j++) {
         var xDatum = xData[j];
         if (xDatum >= start && xDatum <= end) {
@@ -287,15 +358,73 @@
     this.view = new View(element, graph);
     this.renderer = new Renderer(this.view.canvas, this.navigation);
     this.subscribe();
+
+    this.offsetX = 0;
+    this.prevX = 0;
   };
 
   Chart.prototype.subscribe = function subscribe () {
     this.view.el.addEventListener('change', this);
+    this.view.canvas.addEventListener('mousedown', this);
+    this.view.canvas.addEventListener('mouseup', this);
+    this.view.canvas.addEventListener('touchstart', this);
+    this.view.canvas.addEventListener('touchend', this);
+  };
+
+  Chart.prototype.tap = function tap (x, y) {
+    var navigation = this.navigation;
+    var xScale = navigation.xScale;
+    var yScale = navigation.yScale;
+    var ref = xScale.range;
+      var x0 = ref[0];
+      var x1 = ref[1];
+    var ref$1 = yScale.range;
+      var y1 = ref$1[0];
+      var y0 = ref$1[1];
+    var canvas = this.view.canvas;
+    var offsetLeft = canvas.offsetLeft;
+    var offsetTop = canvas.offsetTop;
+
+    var x = x - offsetLeft;
+    var y = y - offsetTop;
+
+    this.offsetX = offsetLeft;
+
+    if (x >= x0 && x <= x1 && y >= y0 && y <= y1) {
+      this.view.canvas.addEventListener('mousemove', this);
+      this.view.canvas.addEventListener('touchmove', this);
+      this.prevX = x;
+    }
+  };
+
+  Chart.prototype.drag = function drag (x) {
+    var navigation = this.navigation;
+    var xScale = navigation.xScale;
+    var xData = navigation.graph.xData;
+    var delta = x - this.prevX;
+
+    var cur = xScale.get(navigation.offset);
+    var offset = xScale.invert(cur + delta);
+
+    offset = Math.max(xData[0], offset);
+    offset = Math.min(xData[xData.length - 1] - navigation.range, offset);
+
+    navigation.navigate(offset, navigation.range);
+
+    this.renderer.enqueue();
+    this.prevX = x;
   };
 
   Chart.prototype.handleEvent = function handleEvent (e) {
     switch (e.type) {
       case 'change': return this.handleChange(e)
+      case 'mousedown': return this.handleMousedown(e)
+      case 'touchstart': return this.handleTouchstart(e)
+      case 'mouseup': return this.handleMouseup(e)
+      case 'touchmove': return this.handleTouchmove(e)
+      case 'mousemove': return this.handleMousemove(e)
+      case 'touchend':
+      case 'touchcancel': return this.handleTouchend(e)
     }
   };
 
@@ -307,8 +436,39 @@
 
     if (series) {
       series.setActive(target.checked);
+      this.navigation.updateYExtremes();
       this.renderer.enqueue();
     }
+  };
+
+  Chart.prototype.handleMousedown = function handleMousedown (e) {
+    this.tap(e.pageX, e.pageY);
+  };
+
+  Chart.prototype.handleMouseup = function handleMouseup (e) {
+    this.view.canvas.removeEventListener('mousemove', this);
+  };
+
+  Chart.prototype.handleMousemove = function handleMousemove (e) {
+    this.drag(e.pageX - this.offsetX);
+  };
+
+  Chart.prototype.handleTouchstart = function handleTouchstart (e) {
+    var ref = e.targetTouches;
+      var touch = ref[0];
+    this.tap(touch.pageX, touch.pageY);
+  };
+
+  Chart.prototype.handleTouchmove = function handleTouchmove (e) {
+    e.preventDefault();
+    var ref = e.targetTouches;
+      var touch = ref[0];
+    this.drag(touch.pageX - this.offsetX);    
+  };
+
+  Chart.prototype.handleTouchend = function handleTouchend (e) {
+    e.preventDefault();
+    this.view.canvas.removeEventListener('touchmove', this);
   };
 
   Chart.prototype.redraw = function redraw (dt) {
