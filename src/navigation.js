@@ -1,64 +1,42 @@
 import Scale from './scale.js'
+import Vector from './vector.js'
+import Point from './point.js'
 
 class Navigation {
   constructor (graph) {
     this.graph = graph
     this.xScale = new Scale()
     this.yScale = new Scale()
-
-    var xData = graph.xData
-    var start = xData[0]
-    var end = xData[xData.length - 1]
-    var range = end - start
-    this.navigate(start + range / 2, range / 2)
-    this.xScale.setDomain(start, end)
-
-    var yDomain = graph.yScale.domain
-    this.yScale.setDomain(yDomain[0], yDomain[1])
+    this.setExtremes()
   }
 
-  navigate (offset, range) {
-    this.offset = offset
-    this.range = range
-    this.graph.xScale.setDomain(offset, offset + range)
-    this.updateYExtremes()
+  simulate (dt) {
+    var graph = this.graph
+
+    var min = this.min
+    var max = this.max
+
+    graph.simulate(dt)
+
+    min.simulate(dt)
+    max.simulate(dt)
+
+    this.xScale.setDomain(min.position.x, max.position.x)
+    this.yScale.setDomain(min.position.y, max.position.y)
   }
 
-  updateYExtremes () {
-    var series = this.graph.series
+  setExtremes () {
     var xData = this.graph.xData
-    var start = this.offset
-    var end = start + this.range
-    var min
-    var max
 
-    for (var i = 0; i < series.length; i++) {
-      var current = series[i]
+    var minX = xData[ 0 ]
+    var maxX = xData[ xData.length - 1 ]
 
-      if (!current.active) continue
+    var [minY, maxY] = this.graph.getYExtremes(minX, maxX)
 
-      var yData = current.yData
-      for (var j = 0; j < xData.length; j++) {
-        var xDatum = xData[j]
-        if (xDatum >= start && xDatum <= end) {
-          var yDatum = yData[j]
+    this.graph.min = this.min = new Point(minX, minY)
+    this.graph.max = this.max = new Point(maxX, maxY)
 
-          min = min || yDatum
-          max = max || yDatum
-
-          if (yDatum < min) {
-            min = yDatum
-          } else if (yDatum > max) {
-            max = yDatum
-          }
-        }
-      }
-    }
-
-    var range = max - min
-    var padding = range * 0.05
-
-    this.graph.yScale.setDomain(min - padding, max + padding)
+    this.simulate(0)
   }
 }
 

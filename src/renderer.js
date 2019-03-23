@@ -6,6 +6,7 @@ class Renderer {
     this.el = canvas.parentNode
     this.navigation = navigation
     this.graph = navigation.graph
+    this.scale()
   }
 
   clear () {
@@ -32,8 +33,8 @@ class Renderer {
 
       var navHeight = this.height * 0.15
 
-      this.graph.yScale.setRange(this.height - navHeight, 0)
-      this.navigation.yScale.setRange(this.height - 2, this.height - navHeight)
+      this.graph.yScale.setRange(this.height - 2, this.height - navHeight)
+      this.navigation.yScale.setRange(this.height - navHeight, 0)
 
       this.graph.xScale.setRange(0, this.width - 2)
       this.navigation.xScale.setRange(0, this.width - 2)
@@ -43,7 +44,6 @@ class Renderer {
   }
 
   redraw () {
-    this.scale()
     if (this.inQueue) {
       this.clear()
       this.draw()
@@ -70,8 +70,8 @@ class Renderer {
     var ctx = this.ctx
     var graph = this.graph
     var navigation = this.navigation
-    var offset = navigation.offset
-    var range = navigation.range
+    var min = navigation.min.position.x
+    var max = navigation.max.position.x
     var series = graph.series
     var xData = graph.xData
     var xScale = graph.xScale
@@ -90,28 +90,28 @@ class Renderer {
 
       if (xData.length) {
         ctx.beginPath()
-        ctx.moveTo(navXScale.get(xData[0]), navYScale.get(yData[0]))
+        ctx.moveTo(xScale.get(xData[0]), yScale.get(yData[0]))
       }
 
       for (var j = 1; j < xData.length; j++) {
         var xDatum = xData[j]
-        ctx.lineTo(navXScale.get(xDatum), navYScale.get(yData[j]))
+        ctx.lineTo(xScale.get(xDatum), yScale.get(yData[j]))
 
-        if (start == null && xDatum >= offset) {
+        if (start == null && xDatum >= min) {
           start = j - 1
         }
 
-        if (end == null && xDatum >= offset + range) {
+        if (end == null && xDatum >= max) {
           end = j + 1
         }
       }
 
       if (xData.length) {
-        ctx.moveTo(xScale.get(xData[start]), yScale.get(yData[start]))
+        ctx.moveTo(navXScale.get(xData[start]), navYScale.get(yData[start]))
       }
 
       for (j = start + 1; j <= end; j++) {
-        ctx.lineTo(xScale.get(xData[j]), yScale.get(yData[j]))
+        ctx.lineTo(navXScale.get(xData[j]), navYScale.get(yData[j]))
       }
 
       ctx.strokeStyle = current.color
@@ -121,13 +121,13 @@ class Renderer {
 
   drawNav () {
     var ctx = this.ctx
-    var navigation = this.navigation
-    var xScale = navigation.xScale
-    var yScale = navigation.yScale
-    var offset = navigation.offset
-    var range = navigation.range
-    var x0 = xScale.get(offset)
-    var x1 = xScale.get(offset + range)
+    var graph = this.graph
+    var xScale = graph.xScale
+    var yScale = graph.yScale
+    var min = graph.min.position.x
+    var max = graph.max.position.x
+    var x0 = xScale.get(min)
+    var x1 = xScale.get(max)
     var [y1, y0] = yScale.range
     var height = y1 - y0
 
@@ -147,13 +147,13 @@ class Renderer {
 
   drawOverlay () {
     var ctx = this.ctx
-    var navigation = this.navigation
-    var xScale = navigation.xScale
-    var yScale = navigation.yScale
-    var offset = navigation.offset
-    var range = navigation.range
-    var x0 = xScale.get(offset)
-    var x1 = xScale.get(offset + range)
+    var graph = this.graph
+    var xScale = graph.xScale
+    var yScale = graph.yScale
+    var min = graph.min.position.x
+    var max = graph.max.position.x
+    var x0 = xScale.get(min)
+    var x1 = xScale.get(max)
     var [y1, y0] = yScale.range
     var height = y1 - y0
 

@@ -1,12 +1,15 @@
 import Series from './series.js'
 import Graph from './graph.js'
 import Chart from './chart.js'
+import * as dom from './dom.js'
 
 class App {
   constructor (element) {
     this.element = element
     this.charts = []
     this.prevTime = 0
+
+    this.subscribe()
   }
 
   addChart (chart) {
@@ -45,6 +48,35 @@ class App {
 
       this.addChart(chart)
     })
+
+    this.handleScroll()
+    this.handleResize()
+  }
+
+  subscribe () {
+    dom.on(window.document.body, 'scroll', this)
+    dom.on(window, 'resize', this)
+    dom.on(window, 'orientationchange', this)
+  }
+
+  handleEvent (e) {
+    switch (e.type) {
+      case 'scroll': return this.handleScroll(e)
+      case 'resize': return this.handleResize(e)
+      case 'orientationchange': return this.handleResize(e)
+    }
+  }
+
+  handleScroll () {
+    for (var i = 0; i < this.charts.length; i++) {
+      this.charts[i].updateOffset()
+    }
+  }
+
+  handleResize () {
+    for (var i = 0; i < this.charts.length; i++) {
+      this.charts[i].renderer.scale()
+    }
   }
 
   digest (time) {

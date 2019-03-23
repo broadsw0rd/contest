@@ -1,27 +1,27 @@
-var document = window.document
+import * as dom from './dom.js'
 
 class View {
   constructor (root, graph) {
     this.root = root
-    this.el = document.createElement('div')
+    this.el = dom.create('div')
     this.graph = graph
-    this.render()
-    this.canvas = this.el.querySelector('canvas')
+    this.init()
+    this.canvas = dom.select(this.el, 'canvas')
   }
 
-  render () {
+  init () {
     var body = [
       `<div class="cell container"><div class="graph"><canvas></canvas></div></div>`,
-      this.graph.series.map(this.renderSeries, this).join('')
+      this.graph.series.map(this.initSeries, this).join('')
     ].join('')
 
-    this.el.classList.add('chart')
-    this.el.innerHTML = body
+    dom.addClass(this.el, 'chart')
+    dom.html(this.el, body)
 
-    this.root.appendChild(this.el)
+    dom.append(this.root, this.el)
   }
 
-  renderSeries (series) {
+  initSeries (series) {
     return [
       `<div class="cell">`,
       `<label>`,
