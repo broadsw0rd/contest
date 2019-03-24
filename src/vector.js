@@ -1,10 +1,6 @@
 class Vector {
-  static min (v1, v2) {
-    return v1.mag() < v2.mag() ? v1 : v2
-  }
-
-  static max (v1, v2) {
-    return v1.mag() > v2.mag() ? v1 : v2
+  static sub (v1, v2) {
+    return v1.clone().sub(v2)
   }
 
   constructor (x = 0, y = 0) {
@@ -27,12 +23,6 @@ class Vector {
   scale (factor) {
     this.x *= factor
     this.y *= factor
-    return this
-  }
-
-  zero () {
-    this.x = 0
-    this.y = 0
     return this
   }
 

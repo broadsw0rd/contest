@@ -122,10 +122,11 @@ class Renderer {
   drawNav () {
     var ctx = this.ctx
     var graph = this.graph
+    var navigation = this.navigation
     var xScale = graph.xScale
     var yScale = graph.yScale
-    var min = graph.min.position.x
-    var max = graph.max.position.x
+    var min = navigation.min.position.x
+    var max = navigation.max.position.x
     var x0 = xScale.get(min)
     var x1 = xScale.get(max)
     var [y1, y0] = yScale.range
@@ -148,10 +149,11 @@ class Renderer {
   drawOverlay () {
     var ctx = this.ctx
     var graph = this.graph
+    var navigation = this.navigation
     var xScale = graph.xScale
     var yScale = graph.yScale
-    var min = graph.min.position.x
-    var max = graph.max.position.x
+    var min = navigation.min.position.x
+    var max = navigation.max.position.x
     var x0 = xScale.get(min)
     var x1 = xScale.get(max)
     var [y1, y0] = yScale.range

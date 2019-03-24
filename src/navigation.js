@@ -33,8 +33,11 @@ class Navigation {
 
     var [minY, maxY] = this.graph.getYExtremes(minX, maxX)
 
-    this.graph.min = this.min = new Point(minX, minY)
-    this.graph.max = this.max = new Point(maxX, maxY)
+    this.min = new Point(minX, minY)
+    this.max = new Point(maxX, maxY)
+
+    this.graph.min = new Point(minX, minY)
+    this.graph.max = new Point(maxX, maxY)
 
     this.simulate(0)
   }

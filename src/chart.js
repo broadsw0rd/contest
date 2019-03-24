@@ -7,7 +7,7 @@ import Vector from './vector.js'
 
 const METHOD_RESIZE_LEFT = 1
 const METHOD_RESIZE_RIGHT = 2
-const METHOD_MOVE = 3
+const METHOD_DRAG = 3
 
 class Chart {
   constructor (element, graph) {
@@ -21,7 +21,6 @@ class Chart {
 
     this.pressed = false
     this.longTap = false
-    this.offsetX = 0
     this.prevX = 0
     this.method = 0
   }
@@ -30,6 +29,24 @@ class Chart {
     var rect = this.view.canvas.getBoundingClientRect()
     this.offset.x = rect.left
     this.offset.y = rect.top
+  }
+
+  updateYExtremes () {
+    var { min, max } = this.navigation
+    var graph = this.graph
+    var [x0, x1] = [min.position.x, max.position.x]
+    var [y0, y1] = this.graph.getYExtremes(x0, x1)
+
+    min.accelerate(new Vector(x0, y0))
+    max.accelerate(new Vector(x1, y1))
+  }
+
+  simulate (dt) {
+    var nav = this.navigation
+    nav.simulate(dt)
+    if (nav.min.active || nav.max.active) {
+      this.renderer.enqueue()
+    }
   }
 
   validate (x, y) {
@@ -52,14 +69,16 @@ class Chart {
   tap (x) {
     var canvas = this.view.canvas
     var navigation = this.navigation
-    var xScale = navigation.xScale
-    var start = xScale.get(navigation.offset)
-    var end = xScale.get(navigation.offset + navigation.range)
+    var xScale = navigation.graph.xScale
+    var start = xScale.get(navigation.min.position.x)
+    var end = xScale.get(navigation.max.position.x)
 
     if (Math.abs(start - x) < 10) {
       this.method = METHOD_RESIZE_LEFT
     } else if (Math.abs(end - x) < 10) {
       this.method = METHOD_RESIZE_RIGHT
+    } else if (start < x && end > x) {
+      this.method = METHOD_DRAG
     } else {
       this.method = METHOD_MOVE
     }
@@ -67,25 +86,22 @@ class Chart {
 
   drag (x) {
     var navigation = this.navigation
-    var xScale = navigation.xScale
+    var xScale = navigation.graph.xScale
     var delta = x - this.prevX
-
-    var start = xScale.get(navigation.offset)
-    var offset = xScale.invert(start + delta)
-    var diff = offset - navigation.offset
-    var range = navigation.range
+    var start = xScale.get(navigation.min.position.x)
+    var end = xScale.get(navigation.max.position.x)
 
     if (this.method === METHOD_RESIZE_LEFT) {
-      range = navigation.range - diff
-      navigation.navigate(offset, range)
+      navigation.min.position.x = xScale.invert(start + delta)
     } else if (this.method === METHOD_RESIZE_RIGHT) {
-      range = navigation.range + diff
-      navigation.resize(range)
+      navigation.max.position.x = xScale.invert(end + delta)
     } else {
-      navigation.move(offset)
+      navigation.min.position.x = xScale.invert(start + delta)
+      navigation.max.position.x = xScale.invert(end + delta)
     }
 
-    this.renderer.enqueue()
+    this.updateYExtremes()
+
     this.prevX = x
   }
 
@@ -125,8 +141,14 @@ class Chart {
 
     if (series) {
       series.setActive(target.checked)
-      this.navigation.updateYExtremes()
-      this.renderer.enqueue()
+
+      this.updateYExtremes()
+
+      var graph = this.graph
+      var nav = this.navigation
+
+      graph.min.accelerate(nav.min.target)
+      graph.max.accelerate(nav.max.target)
     }
   }
 
@@ -135,13 +157,13 @@ class Chart {
 
     if (this.validate(x, y)) {
       this.pressed = true
+      this.prevX = x
       this.tap(x)
     }
   }
 
   handleMouseup (e) {
     this.pressed = false
-    // this.view.canvas.removeEventListener('mousemove', this)
   }
 
   handleMousemove (e) {
@@ -164,6 +186,7 @@ class Chart {
     if (this.validate(x, y)) {
       e.preventDefault()
       this.pressed = true
+      this.prevX = x
       this.tap(x)
     } else {
       this.longTapTimeout = setTimeout(() => {
@@ -200,7 +223,7 @@ class Chart {
   }
 
   redraw (dt) {
-    this.navigation.simulate(dt)
+    this.simulate(dt)
     this.renderer.redraw()
   }
 }

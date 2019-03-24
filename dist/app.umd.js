@@ -79,12 +79,8 @@
     this.y = y;
   };
 
-  Vector.min = function min (v1, v2) {
-    return v1.mag() < v2.mag() ? v1 : v2
-  };
-
-  Vector.max = function max (v1, v2) {
-    return v1.mag() > v2.mag() ? v1 : v2
+  Vector.sub = function sub (v1, v2) {
+    return v1.clone().sub(v2)
   };
 
   Vector.prototype.add = function add (vector) {
@@ -105,12 +101,6 @@
     return this
   };
 
-  Vector.prototype.zero = function zero () {
-    this.x = 0;
-    this.y = 0;
-    return this
-  };
-
   Vector.prototype.mag = function mag () {
     return this.x * this.x + this.y * this.y
   };
@@ -121,26 +111,31 @@
 
   var Point = function Point (x, y) {
     this.position = new Vector(x, y);
-    this.previous = new Vector(x, y);
-    this.acceleration = new Vector(0, 0);
+    this.target = new Vector(x, y);
+    this.velocity = new Vector(0, 0);
+    this.active = false;
   };
 
-  Point.prototype.accelerate = function accelerate (vector) {
-    this.acceleration.add(vector);
+  Point.prototype.accelerate = function accelerate (target) {
+    this.target = target;
+    this.velocity = Vector.sub(this.target, this.position);
+    this.active = true;
   };
 
   Point.prototype.simulate = function simulate (dt) {
-    this.acceleration.scale(dt * dt);
+    if (!this.active) { return; }
 
-    var position = this.position
-      .clone()
-      .scale(2)
-      .sub(this.previous)
-      .add(this.acceleration);
+    var dist = Vector.sub(this.target, this.position);
+    var velocity = this.velocity.clone();
 
-    this.previous = this.position;
-    this.position = position;
-    this.acceleration.zero();
+    velocity.scale(dt/200);
+
+    if (dist.mag() < velocity.mag()) {
+      this.velocity = dist;
+      this.active = false;
+    }
+
+    this.position.add(velocity);
   };
 
   var Graph = function Graph () {
@@ -205,6 +200,9 @@
         }
       }
     }
+
+    min = min || 0;
+    max = max || 0;
 
     var range = max - min;
     var padding = range * 0.1;
@@ -434,10 +432,11 @@
   Renderer.prototype.drawNav = function drawNav () {
     var ctx = this.ctx;
     var graph = this.graph;
+    var navigation = this.navigation;
     var xScale = graph.xScale;
     var yScale = graph.yScale;
-    var min = graph.min.position.x;
-    var max = graph.max.position.x;
+    var min = navigation.min.position.x;
+    var max = navigation.max.position.x;
     var x0 = xScale.get(min);
     var x1 = xScale.get(max);
     var ref = yScale.range;
@@ -462,10 +461,11 @@
   Renderer.prototype.drawOverlay = function drawOverlay () {
     var ctx = this.ctx;
     var graph = this.graph;
+    var navigation = this.navigation;
     var xScale = graph.xScale;
     var yScale = graph.yScale;
-    var min = graph.min.position.x;
-    var max = graph.max.position.x;
+    var min = navigation.min.position.x;
+    var max = navigation.max.position.x;
     var x0 = xScale.get(min);
     var x1 = xScale.get(max);
     var ref = yScale.range;
@@ -512,8 +512,11 @@
       var minY = ref[0];
       var maxY = ref[1];
 
-    this.graph.min = this.min = new Point(minX, minY);
-    this.graph.max = this.max = new Point(maxX, maxY);
+    this.min = new Point(minX, minY);
+    this.max = new Point(maxX, maxY);
+
+    this.graph.min = new Point(minX, minY);
+    this.graph.max = new Point(maxX, maxY);
 
     this.simulate(0);
   };
@@ -698,7 +701,7 @@
 
   var METHOD_RESIZE_LEFT = 1;
   var METHOD_RESIZE_RIGHT = 2;
-  var METHOD_MOVE = 3;
+  var METHOD_DRAG = 3;
 
   var Chart = function Chart (element, graph) {
     this.graph = graph;
@@ -711,7 +714,6 @@
 
     this.pressed = false;
     this.longTap = false;
-    this.offsetX = 0;
     this.prevX = 0;
     this.method = 0;
   };
@@ -720,6 +722,30 @@
     var rect = this.view.canvas.getBoundingClientRect();
     this.offset.x = rect.left;
     this.offset.y = rect.top;
+  };
+
+  Chart.prototype.updateYExtremes = function updateYExtremes () {
+    var ref = this.navigation;
+      var min = ref.min;
+      var max = ref.max;
+    var graph = this.graph;
+    var ref$1 = [min.position.x, max.position.x];
+      var x0 = ref$1[0];
+      var x1 = ref$1[1];
+    var ref$2 = this.graph.getYExtremes(x0, x1);
+      var y0 = ref$2[0];
+      var y1 = ref$2[1];
+
+    min.accelerate(new Vector(x0, y0));
+    max.accelerate(new Vector(x1, y1));
+  };
+
+  Chart.prototype.simulate = function simulate (dt) {
+    var nav = this.navigation;
+    nav.simulate(dt);
+    if (nav.min.active || nav.max.active) {
+      this.renderer.enqueue();
+    }
   };
 
   Chart.prototype.validate = function validate (x, y) {
@@ -746,14 +772,16 @@
   Chart.prototype.tap = function tap (x) {
     var canvas = this.view.canvas;
     var navigation = this.navigation;
-    var xScale = navigation.xScale;
-    var start = xScale.get(navigation.offset);
-    var end = xScale.get(navigation.offset + navigation.range);
+    var xScale = navigation.graph.xScale;
+    var start = xScale.get(navigation.min.position.x);
+    var end = xScale.get(navigation.max.position.x);
 
     if (Math.abs(start - x) < 10) {
       this.method = METHOD_RESIZE_LEFT;
     } else if (Math.abs(end - x) < 10) {
       this.method = METHOD_RESIZE_RIGHT;
+    } else if (start < x && end > x) {
+      this.method = METHOD_DRAG;
     } else {
       this.method = METHOD_MOVE;
     }
@@ -761,25 +789,22 @@
 
   Chart.prototype.drag = function drag (x) {
     var navigation = this.navigation;
-    var xScale = navigation.xScale;
+    var xScale = navigation.graph.xScale;
     var delta = x - this.prevX;
-
-    var start = xScale.get(navigation.offset);
-    var offset = xScale.invert(start + delta);
-    var diff = offset - navigation.offset;
-    var range = navigation.range;
+    var start = xScale.get(navigation.min.position.x);
+    var end = xScale.get(navigation.max.position.x);
 
     if (this.method === METHOD_RESIZE_LEFT) {
-      range = navigation.range - diff;
-      navigation.navigate(offset, range);
+      navigation.min.position.x = xScale.invert(start + delta);
     } else if (this.method === METHOD_RESIZE_RIGHT) {
-      range = navigation.range + diff;
-      navigation.resize(range);
+      navigation.max.position.x = xScale.invert(end + delta);
     } else {
-      navigation.move(offset);
+      navigation.min.position.x = xScale.invert(start + delta);
+      navigation.max.position.x = xScale.invert(end + delta);
     }
 
-    this.renderer.enqueue();
+    this.updateYExtremes();
+
     this.prevX = x;
   };
 
@@ -819,8 +844,14 @@
 
     if (series) {
       series.setActive(target.checked);
-      this.navigation.updateYExtremes();
-      this.renderer.enqueue();
+
+      this.updateYExtremes();
+
+      var graph = this.graph;
+      var nav = this.navigation;
+
+      graph.min.accelerate(nav.min.target);
+      graph.max.accelerate(nav.max.target);
     }
   };
 
@@ -831,13 +862,13 @@
 
     if (this.validate(x, y)) {
       this.pressed = true;
+      this.prevX = x;
       this.tap(x);
     }
   };
 
   Chart.prototype.handleMouseup = function handleMouseup (e) {
     this.pressed = false;
-    // this.view.canvas.removeEventListener('mousemove', this)
   };
 
   Chart.prototype.handleMousemove = function handleMousemove (e) {
@@ -867,6 +898,7 @@
     if (this.validate(x, y)) {
       e.preventDefault();
       this.pressed = true;
+      this.prevX = x;
       this.tap(x);
     } else {
       this.longTapTimeout = setTimeout(function () {
@@ -906,7 +938,7 @@
   };
 
   Chart.prototype.redraw = function redraw (dt) {
-    this.navigation.simulate(dt);
+    this.simulate(dt);
     this.renderer.redraw();
   };
 

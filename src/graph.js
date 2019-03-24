@@ -65,6 +65,9 @@ class Graph {
       }
     }
 
+    min = min || 0
+    max = max || 0
+
     var range = max - min
     var padding = range * 0.1
 
