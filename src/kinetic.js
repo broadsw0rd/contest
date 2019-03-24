@@ -151,7 +151,6 @@ class Kinetic {
   }
 
   tap (e, event) {
-
     var id = this.getId(e)
     var pointer = this.find(id)
     if (!pointer) {

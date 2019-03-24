@@ -26,8 +26,7 @@ class Chart {
     this.method = 0
   }
 
-  updateYExtremes () {
-    var { min, max } = this.navigation
+  updateYExtremes ({ min, max }) {
     var graph = this.graph
     var [x0, x1] = [min.position.x, max.position.x]
     var [y0, y1] = graph.getYExtremes(x0, x1)
@@ -97,7 +96,7 @@ class Chart {
 
     if (this.method === METHOD_DRAG) {
       value = xScale.invert(start + x)
-      value = Math.max(min, Math.min(min + this.range, value))
+      value = Math.max(min, Math.min(value, max - this.range))
       minPos.x = value
       maxPos.x = value + this.range
     } else if (this.method === METHOD_RESIZE_LEFT) {
@@ -110,7 +109,7 @@ class Chart {
       maxPos.x = value
     }
 
-    this.updateYExtremes()
+    this.updateYExtremes(this.navigation)
   }
 
   subscribe () {
@@ -144,19 +143,20 @@ class Chart {
     if (series) {
       series.setActive(target.checked)
 
-      this.updateYExtremes()
+      this.updateYExtremes(this.navigation)
+      this.updateYExtremes(this.graph)
 
-      var graph = this.graph
-      var nav = this.navigation
-
-      graph.min.accelerate(nav.min.target)
-      graph.max.accelerate(nav.max.target)
+      if (this.graph.hasData()) {
+        dom.hide(this.view.placeholder)
+      } else {
+        dom.show(this.view.placeholder)
+      }
     }
   }
 
   showTooltip (e) {
     var pos = this.kinetic.position(e).sub(this.kinetic.offset)
-    if (!this.validate(pos)) {
+    if (!this.validate(pos) && this.graph.hasData()) {
       this.tooltip.show(pos.x)
     } else {
       this.hideTooltip()
@@ -177,10 +177,11 @@ class Chart {
         pointer.event.preventDefault()
         this.hideTooltip()
         this.drag(pointer.delta.x)
-      }
-      else if (this.longTap) {
+      } else if (this.longTap) {
         pointer.event.preventDefault()
         this.tooltip.show(pointer.position.x)
+      } else {
+        this.hideTooltip()
       }
     }
   }

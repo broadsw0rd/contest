@@ -1,3 +1,5 @@
+import * as date from './date.js'
+
 var pixelRatio = window.devicePixelRatio || 1
 
 class Renderer {
@@ -32,9 +34,10 @@ class Renderer {
       this.ctx.translate(0.5, 0.5)
 
       var navHeight = this.height * 0.15
+      var xGridHeight = 40
 
       this.graph.yScale.setRange(this.height - 2, this.height - navHeight)
-      this.navigation.yScale.setRange(this.height - navHeight, 0)
+      this.navigation.yScale.setRange(this.height - navHeight - xGridHeight, 0)
 
       this.graph.xScale.setRange(0, this.width - 2)
       this.navigation.xScale.setRange(0, this.width - 2)
@@ -59,11 +62,60 @@ class Renderer {
   }
 
   draw () {
-    this.drawNav()
-    this.drawSeries()
-    this.drawOverlay()
+    if (this.graph.hasData()) {
+      this.drawGrid()
+      this.drawNav()
+      this.drawSeries()
+      this.drawOverlay()
+    }
 
     this.dequeue()
+  }
+
+  drawGrid () {
+    var ctx = this.ctx
+    var width = this.width
+    var graph = this.graph
+    var navigation = this.navigation
+    var xData = graph.xData
+    var xScale = navigation.xScale
+    var yScale = navigation.yScale
+    var y = graph.yScale.range[1] - 20
+    var [start, end] = xScale.domain
+
+    var range = Math.floor((end - start) / 5)
+    var count = Math.floor(range / date.DAY)
+
+    if (count % 2) {
+      count += 1
+    }
+
+    ctx.fillStyle = '#97a3ab'
+    ctx.textBaseline = 'middle'
+    ctx.font = '14px Tahoma, Helvetica, sans-serif'
+
+    for (var i = 0; i < xData.length; i += 2) {
+      var datum = xData[i]
+
+      if (!(start <= datum && datum <= end)) {
+        continue
+      }
+
+      if (i % count !== 0) {
+        continue
+      }
+
+      var align = 'center'
+
+      if (i === 0) {
+        align = 'left'
+      } else if (i === xData.length - 1) {
+        align = 'right'
+      }
+
+      ctx.textAlign = align
+      ctx.fillText(date.formatShort(datum), xScale.get(datum), y)
+    }
   }
 
   drawSeries () {
@@ -83,6 +135,7 @@ class Renderer {
 
     for (var i = 0; i < series.length; i++) {
       var current = series[i]
+      var opaque = true
 
       if (!current.active) continue
 
@@ -95,7 +148,13 @@ class Renderer {
 
       for (var j = 1; j < xData.length; j++) {
         var xDatum = xData[j]
-        ctx.lineTo(xScale.get(xDatum), yScale.get(yData[j]))
+        var yDatum = yData[j]
+
+        if (yDatum < yScale.domain[0] || yDatum > yScale.domain[1]) {
+          opaque = false
+        }
+
+        ctx.lineTo(xScale.get(xDatum), yScale.get(yDatum))
 
         if (start == null && xDatum >= min) {
           start = j - 1
@@ -114,9 +173,11 @@ class Renderer {
         ctx.lineTo(navXScale.get(xData[j]), navYScale.get(yData[j]))
       }
 
+      ctx.globalAlpha = Number(opaque)
       ctx.strokeStyle = current.color
       ctx.stroke()
     }
+    ctx.globalAlpha = 1
   }
 
   drawNav () {

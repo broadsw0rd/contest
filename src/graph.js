@@ -22,6 +22,10 @@ class Graph {
     this.xData = data
   }
 
+  hasData () {
+    return this.series.some(series => series.active)
+  }
+
   simulate (dt) {
     var min = this.min
     var max = this.max
@@ -50,7 +54,7 @@ class Graph {
       for (var j = 0; j < xData.length; j++) {
         var xDatum = xData[j]
 
-        if (xDatum >= start && xDatum <= end) {
+        if (start <= xDatum && xDatum <= end) {
           var yDatum = yData[j]
 
           min = min || yDatum
@@ -69,9 +73,8 @@ class Graph {
     max = max || 0
 
     var range = max - min
-    var padding = range * 0.1
+    var padding = range * 0.2
 
-    min -= padding
     max += padding
 
     return [min, max]

@@ -84,9 +84,9 @@ class Tooltip {
     var shift = -12
 
     if (offset + width + shift > r1) {
-      shift = r1 - offset - width + 8
-    } else if (offset + shift < -8) {
-      shift = offset - 8
+      shift = r1 - offset - width + 16
+    } else if (offset + shift < -16) {
+      shift = offset - 16
     }
 
     dom.css(this.body, 'transform', `translate(${shift}px)`)

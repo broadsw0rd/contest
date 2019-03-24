@@ -49,12 +49,12 @@ class App {
       this.addChart(chart)
     })
 
-    this.handleScroll();
+    this.handleScroll()
     this.handleResize()
   }
 
   subscribe () {
-    dom.on(window.document.body, 'scroll', this);
+    dom.on(window.document.body, 'scroll', this)
     dom.on(window, 'resize', this)
     dom.on(window, 'orientationchange', this)
   }

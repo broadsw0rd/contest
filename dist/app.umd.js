@@ -170,6 +170,10 @@
     this.xData = data;
   };
 
+  Graph.prototype.hasData = function hasData () {
+    return this.series.some(function (series) { return series.active; })
+  };
+
   Graph.prototype.simulate = function simulate (dt) {
     var min = this.min;
     var max = this.max;
@@ -198,7 +202,7 @@
       for (var j = 0; j < xData.length; j++) {
         var xDatum = xData[j];
 
-        if (xDatum >= start && xDatum <= end) {
+        if (start <= xDatum&& xDatum <= end) {
           var yDatum = yData[j];
 
           min = min || yDatum;
@@ -217,9 +221,8 @@
     max = max || 0;
 
     var range = max - min;
-    var padding = range * 0.1;
+    var padding = range * 0.2;
 
-    min -= padding;
     max += padding;
 
     return [min, max]
@@ -295,15 +298,22 @@
     this.graph = graph;
     this.init();
     this.canvas = select(this.el, 'canvas');
+    this.placeholder = select(this.el, '.placeholder');
   };
 
   View.prototype.init = function init () {
     var body = [
-      "<div class=\"cell container\"><div class=\"graph\"><canvas></canvas></div></div>",
+      "<div class=\"cell container\">",
+      "<div class=\"graph\">",
+      "<canvas></canvas>",
+      "<div class=\"placeholder\">No data</div>",
+      "</div>",
+      "</div>",
       this.graph.series.map(this.initSeries, this).join('')
     ].join('');
 
     addClass(this.el, 'chart');
+    addClass(this.el, 'cell');
     html(this.el, body);
 
     append(this.root, this.el);
@@ -320,6 +330,43 @@
       "</div>"
     ].join('')
   };
+
+  var DAYS = [
+    'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat'
+  ];
+
+  var MONTHS = [
+    'Jan',
+    'Fab',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
+  ];
+
+  function format (time) {
+    var date = new Date(time);
+    return ((DAYS[date.getDay()]) + ", " + (MONTHS[date.getMonth()]) + " " + (date.getDate()))
+  }
+
+  function formatShort (time) {
+    var date = new Date(time);
+    return ((MONTHS[date.getMonth()]) + " " + (date.getDate()))
+  }
+
+  var DAY = 24 * 60 * 60 * 1000;
 
   var pixelRatio = window.devicePixelRatio || 1;
 
@@ -354,9 +401,10 @@
       this.ctx.translate(0.5, 0.5);
 
       var navHeight = this.height * 0.15;
+      var xGridHeight = 40;
 
       this.graph.yScale.setRange(this.height - 2, this.height - navHeight);
-      this.navigation.yScale.setRange(this.height - navHeight, 0);
+      this.navigation.yScale.setRange(this.height - navHeight - xGridHeight, 0);
 
       this.graph.xScale.setRange(0, this.width - 2);
       this.navigation.xScale.setRange(0, this.width - 2);
@@ -381,11 +429,66 @@
   };
 
   Renderer.prototype.draw = function draw () {
-    this.drawNav();
-    this.drawSeries();
-    this.drawOverlay();
+    if (this.graph.hasData()) { 
+      this.drawGrid();
+      this.drawNav();
+      this.drawSeries();
+      this.drawOverlay();
+    }
 
     this.dequeue();
+  };
+
+  Renderer.prototype.drawGrid = function drawGrid () {
+    var ctx = this.ctx;
+    var width = this.width;
+    var graph = this.graph;
+    var navigation = this.navigation;
+    var min = navigation.min.position.x;
+    var max = navigation.max.position.x;
+    var xData = graph.xData;
+    var xScale = navigation.xScale;
+    var yScale = navigation.yScale;
+    var y = graph.yScale.range[1] - 20;
+    var ref = xScale.domain;
+      var start = ref[0];
+      var end = ref[1];
+
+    var range = Math.floor((end - start) / 5);
+    var count = Math.floor(range / DAY);
+
+    if (count % 2) {
+      count += 1;
+    }
+
+    ctx.fillStyle = '#97a3ab';
+    ctx.textBaseline = 'middle';
+    ctx.font = '14px Tahoma, Helvetica, sans-serif';
+
+    for (var i = 0; i < xData.length; i += 2) {
+      var datum = xData[i];
+
+      if (!(start <= datum && datum <= end)) {
+        continue
+      }
+
+      if (i % count !== 0) {
+        continue
+      }
+
+      var align = 'center';
+
+      if (i === 0) {
+        align = 'left';
+      } else if (i === xData.length - 1) {
+        align = 'right';
+      }
+
+      ctx.textAlign = align;
+      ctx.fillText(formatShort(datum), xScale.get(datum), y);
+    }
+
+
   };
 
   Renderer.prototype.drawSeries = function drawSeries () {
@@ -405,6 +508,7 @@
 
     for (var i = 0; i < series.length; i++) {
       var current = series[i];
+      var opaque = true;
 
       if (!current.active) { continue }
 
@@ -417,7 +521,13 @@
 
       for (var j = 1; j < xData.length; j++) {
         var xDatum = xData[j];
-        ctx.lineTo(xScale.get(xDatum), yScale.get(yData[j]));
+        var yDatum = yData[j];
+
+        if (yDatum < yScale.domain[0] || yDatum > yScale.domain[1]) {
+          opaque = false;
+        }
+
+        ctx.lineTo(xScale.get(xDatum), yScale.get(yDatum));
 
         if (start == null && xDatum >= min) {
           start = j - 1;
@@ -436,9 +546,11 @@
         ctx.lineTo(navXScale.get(xData[j]), navYScale.get(yData[j]));
       }
 
+      ctx.globalAlpha = Number(opaque);
       ctx.strokeStyle = current.color;
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
   };
 
   Renderer.prototype.drawNav = function drawNav () {
@@ -533,36 +645,6 @@
     this.simulate(0);
   };
 
-  var DAYS = [
-    'Sun',
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat'
-  ];
-
-  var MONTHS = [
-    'Jan',
-    'Fab',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  ];
-
-  function format (time) {
-    var date = new Date(time);
-    return ((DAYS[date.getDay()]) + ", " + (MONTHS[date.getMonth()]) + " " + (date.getDate()))
-  }
-
   var Tooltip = function Tooltip (root, navigation) {
     this.root = root;
     this.el = create('div');
@@ -647,9 +729,9 @@
     var shift = -12;
 
     if (offset + width + shift > r1) {
-      shift = r1 - offset - width + 8;
-    } else if (offset + shift < -8) {
-      shift = offset - 8;
+      shift = r1 - offset - width + 16;
+    } else if (offset + shift < -16) {
+      shift = offset - 16;
     }
 
     css(this.body, 'transform', ("translate(" + shift + "px)"));
@@ -1014,10 +1096,10 @@
     this.method = 0;
   };
 
-  Chart.prototype.updateYExtremes = function updateYExtremes () {
-    var ref = this.navigation;
+  Chart.prototype.updateYExtremes = function updateYExtremes (ref) {
       var min = ref.min;
       var max = ref.max;
+
     var graph = this.graph;
     var ref$1 = [min.position.x, max.position.x];
       var x0 = ref$1[0];
@@ -1103,7 +1185,7 @@
 
     if (this.method === METHOD_DRAG) {
       value = xScale.invert(start + x);
-      value = Math.max(min, Math.min(min + this.range, value));
+      value = Math.max(min, Math.min(value, max - this.range));
       minPos.x = value;
       maxPos.x = value + this.range;
     } else if (this.method === METHOD_RESIZE_LEFT) {
@@ -1116,7 +1198,7 @@
       maxPos.x = value;
     }
 
-    this.updateYExtremes();
+    this.updateYExtremes(this.navigation);
   };
 
   Chart.prototype.subscribe = function subscribe () {
@@ -1150,19 +1232,20 @@
     if (series) {
       series.setActive(target.checked);
 
-      this.updateYExtremes();
+      this.updateYExtremes(this.navigation);
+      this.updateYExtremes(this.graph);
 
-      var graph = this.graph;
-      var nav = this.navigation;
-
-      graph.min.accelerate(nav.min.target);
-      graph.max.accelerate(nav.max.target);
+      if (this.graph.hasData()) {
+        hide(this.view.placeholder);
+      } else {
+        show(this.view.placeholder);
+      }
     }
   };
 
   Chart.prototype.showTooltip = function showTooltip (e) {
     var pos = this.kinetic.position(e).sub(this.kinetic.offset);
-    if (!this.validate(pos)) {
+    if (!this.validate(pos) && this.graph.hasData()) {
       this.tooltip.show(pos.x);
     } else {
       this.hideTooltip();
@@ -1187,6 +1270,8 @@
       else if (this.longTap) {
         pointer.event.preventDefault();
         this.tooltip.show(pointer.position.x);
+      } else {
+        this.hideTooltip();
       }
     }
   };
