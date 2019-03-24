@@ -137,17 +137,19 @@
   Point.prototype.simulate = function simulate (dt) {
     if (!this.active) { return }
 
-    var dist = Vector.sub(this.target, this.position);
-    var velocity = this.velocity.clone();
-
-    velocity.scale(dt / 200);
-
-    if (dist.mag() < velocity.mag()) {
-      this.velocity = dist;
+    if (this.position === this.target) {
       this.active = false;
-    }
+    } else {
+      var dist = Vector.sub(this.target, this.position);
+      var velocity = this.velocity.clone();
 
-    this.position.add(velocity);
+      velocity.scale(dt / 200);
+      if (dist.mag() <= velocity.mag()) {
+        this.position = this.target;
+      } else {
+        this.position.add(velocity);
+      }
+    }
   };
 
   var Graph = function Graph () {
@@ -372,6 +374,19 @@
 
   var DAY = 24 * 60 * 60 * 1000;
 
+  function abbreviate (value) {
+    var suffixes = ['', 'K', 'M', 'B','T'];
+    var suffixNum = 0;
+
+    while (value >= 1000) {
+      value /= 1000;
+      suffixNum++;
+    }
+
+    value += suffixes[suffixNum];
+    return value;
+  }
+
   var pixelRatio = window.devicePixelRatio || 1;
 
   var Renderer = function Renderer (canvas, navigation, theme) {
@@ -461,17 +476,22 @@
     var ref = xScale.domain;
       var start = ref[0];
       var end = ref[1];
+    var divider = 6;
 
-    var range = Math.floor((end - start) / 5);
+    ctx.fillStyle = this.theme.gridTextColor;
+    ctx.textBaseline = 'middle';
+    ctx.font = '14px Tahoma, Helvetica, sans-serif';
+
+    if (width <= 480) {
+      divider = 3;
+    }
+
+    var range = Math.floor((end - start) / divider);
     var count = Math.floor(range / DAY);
 
     if (count % 2) {
       count += 1;
     }
-
-    ctx.fillStyle = this.theme.gridTextColor;
-    ctx.textBaseline = 'middle';
-    ctx.font = '14px Tahoma, Helvetica, sans-serif';
 
     for (var i = 0; i < xData.length; i += 2) {
       var datum = xData[i];
@@ -495,6 +515,36 @@
       ctx.textAlign = align;
       ctx.fillText(formatShort(datum), xScale.get(datum), y);
     }
+
+    var ref$1 = yScale.domain;
+      var min = ref$1[0];
+      var max = ref$1[1];
+    var step = Math.pow(10, Math.floor(max - min).toString().length - 1);
+
+    console.log(min, max, step);
+
+    if ((max - min) / step < 4) {
+      step /= 2;
+    }
+
+    console.log(step);
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.beginPath();
+
+    for (var i = min - min % step; i < max; i += step) {
+      var position = yScale.get(i);
+      if (position < yScale.range[0]) {
+        ctx.moveTo(0, position);
+        ctx.lineTo(xScale.range[1], position);
+        ctx.fillText(abbreviate(i), 0, position);
+      }
+    }
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = this.theme.gridColor;
+    ctx.stroke();
   };
 
   Renderer.prototype.drawSeries = function drawSeries () {
@@ -1163,9 +1213,9 @@
     var start = xScale.get(minPos.x);
     var end = xScale.get(maxPos.x);
 
-    if (Math.abs(start - x) < 20) {
+    if (Math.abs(start - x) < 16) {
       this.method = METHOD_RESIZE_LEFT;
-    } else if (Math.abs(end - x) < 20) {
+    } else if (Math.abs(end - x) < 16) {
       this.method = METHOD_RESIZE_RIGHT;
     } else if (start < x && end > x) {
       this.method = METHOD_DRAG;
@@ -1360,7 +1410,7 @@
 
   App.prototype.subscribe = function subscribe () {
     on(this.switcher, 'click', this);
-    on(window.document.body, 'scroll', this);
+    on(window.document, 'scroll', this);
     on(window, 'resize', this);
     on(window, 'orientationchange', this);
   };

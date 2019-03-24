@@ -1,4 +1,5 @@
 import * as date from './date.js'
+import * as number from './number.js'
 
 var pixelRatio = window.devicePixelRatio || 1
 
@@ -88,17 +89,22 @@ class Renderer {
     var yScale = navigation.yScale
     var y = graph.yScale.range[1] - 20
     var [start, end] = xScale.domain
+    var divider = 6
 
-    var range = Math.floor((end - start) / 5)
+    ctx.fillStyle = this.theme.gridTextColor
+    ctx.textBaseline = 'middle'
+    ctx.font = '14px Tahoma, Helvetica, sans-serif'
+
+    if (width <= 480) {
+      divider = 3
+    }
+
+    var range = Math.floor((end - start) / divider)
     var count = Math.floor(range / date.DAY)
 
     if (count % 2) {
       count += 1
     }
-
-    ctx.fillStyle = this.theme.gridTextColor
-    ctx.textBaseline = 'middle'
-    ctx.font = '14px Tahoma, Helvetica, sans-serif'
 
     for (var i = 0; i < xData.length; i += 2) {
       var datum = xData[i]
@@ -122,6 +128,32 @@ class Renderer {
       ctx.textAlign = align
       ctx.fillText(date.formatShort(datum), xScale.get(datum), y)
     }
+
+    var [min, max] = yScale.domain
+    var step = Math.pow(10, Math.floor(max - min).toString().length - 1)
+
+    if ((max - min) / step < 4) {
+      step /= 2
+    }
+
+    console.log(step)
+
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'bottom'
+    ctx.beginPath()
+
+    for (var i = min - min % step; i < max; i += step) {
+      var position = yScale.get(i)
+      if (position < yScale.range[0]) {
+        ctx.moveTo(0, position)
+        ctx.lineTo(xScale.range[1], position)
+        ctx.fillText(number.abbreviate(i), 0, position)
+      }
+    }
+
+    ctx.lineWidth = 1
+    ctx.strokeStyle = this.theme.gridColor
+    ctx.stroke()
   }
 
   drawSeries () {

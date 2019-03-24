@@ -71,9 +71,9 @@ class Chart {
     var start = xScale.get(minPos.x)
     var end = xScale.get(maxPos.x)
 
-    if (Math.abs(start - x) < 20) {
+    if (Math.abs(start - x) < 16) {
       this.method = METHOD_RESIZE_LEFT
-    } else if (Math.abs(end - x) < 20) {
+    } else if (Math.abs(end - x) < 16) {
       this.method = METHOD_RESIZE_RIGHT
     } else if (start < x && end > x) {
       this.method = METHOD_DRAG

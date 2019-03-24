@@ -59,7 +59,7 @@ class App {
 
   subscribe () {
     dom.on(this.switcher, 'click', this)
-    dom.on(window.document.body, 'scroll', this)
+    dom.on(window.document, 'scroll', this)
     dom.on(window, 'resize', this)
     dom.on(window, 'orientationchange', this)
   }

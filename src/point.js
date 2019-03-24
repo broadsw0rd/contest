@@ -17,17 +17,19 @@ class Point {
   simulate (dt) {
     if (!this.active) return
 
-    var dist = Vector.sub(this.target, this.position)
-    var velocity = this.velocity.clone()
-
-    velocity.scale(dt / 200)
-
-    if (dist.mag() < velocity.mag()) {
-      this.velocity = dist
+    if (this.position === this.target) {
       this.active = false
-    }
+    } else {
+      var dist = Vector.sub(this.target, this.position)
+      var velocity = this.velocity.clone()
 
-    this.position.add(velocity)
+      velocity.scale(dt / 200)
+      if (dist.mag() <= velocity.mag()) {
+        this.position = this.target
+      } else {
+        this.position.add(velocity)
+      }
+    }
   }
 }
 
