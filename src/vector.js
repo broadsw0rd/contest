@@ -26,12 +26,24 @@ class Vector {
     return this
   }
 
+  zero () {
+    this.x = 0
+    this.y = 0
+    return this
+  }
+
   mag () {
     return this.x * this.x + this.y * this.y
   }
 
   clone () {
     return new Vector(this.x, this.y)
+  }
+
+  lerp (vector, t) {
+    var x = (1 - t) * this.x + t * vector.x
+    var y = (1 - t) * this.y + t * vector.y
+    return new Vector(x, y)
   }
 }
 

@@ -1,5 +1,4 @@
 import Scale from './scale.js'
-import Vector from './vector.js'
 import Point from './point.js'
 
 class Navigation {

@@ -79,7 +79,7 @@ class Tooltip {
 
     var xScale = nav.xScale
     var width = this.body.clientWidth
-    var [r0, r1] = xScale.range
+    var r1 = xScale.range[1]
     var offset = xScale.get(xData[this.idx])
     var shift = -12
 

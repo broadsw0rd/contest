@@ -49,12 +49,12 @@ class App {
       this.addChart(chart)
     })
 
-    this.handleScroll()
+    this.handleScroll();
     this.handleResize()
   }
 
   subscribe () {
-    dom.on(window.document.body, 'scroll', this)
+    dom.on(window.document.body, 'scroll', this);
     dom.on(window, 'resize', this)
     dom.on(window, 'orientationchange', this)
   }
@@ -69,7 +69,7 @@ class App {
 
   handleScroll () {
     for (var i = 0; i < this.charts.length; i++) {
-      this.charts[i].updateOffset()
+      this.charts[i].kinetic.updateOffset()
     }
   }
 
@@ -82,7 +82,7 @@ class App {
   digest (time) {
     this.prevTime = this.prevTime || time
     for (var i = 0; i < this.charts.length; i++) {
-      this.charts[i].redraw(time - this.prevTime)
+      this.charts[i].update(time - this.prevTime, time)
     }
     this.prevTime = time
   }

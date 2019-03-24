@@ -15,12 +15,12 @@ class Point {
   }
 
   simulate (dt) {
-    if (!this.active) return;
+    if (!this.active) return
 
     var dist = Vector.sub(this.target, this.position)
     var velocity = this.velocity.clone()
 
-    velocity.scale(dt/200)
+    velocity.scale(dt / 200)
 
     if (dist.mag() < velocity.mag()) {
       this.velocity = dist

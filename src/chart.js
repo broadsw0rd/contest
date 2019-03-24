@@ -2,12 +2,14 @@ import View from './view.js'
 import Renderer from './renderer.js'
 import Navigation from './navigation.js'
 import Tooltip from './tooltip.js'
+import Kinetic from './kinetic.js'
 import * as dom from './dom.js'
 import Vector from './vector.js'
 
 const METHOD_RESIZE_LEFT = 1
 const METHOD_RESIZE_RIGHT = 2
 const METHOD_DRAG = 3
+const METHOD_MOVE = 4
 
 class Chart {
   constructor (element, graph) {
@@ -15,27 +17,20 @@ class Chart {
     this.navigation = new Navigation(graph)
     this.view = new View(element, graph)
     this.renderer = new Renderer(this.view.canvas, this.navigation)
+    this.kinetic = new Kinetic(this.view.canvas)
     this.tooltip = new Tooltip(this.view.canvas.parentNode, this.navigation)
-    this.offset = new Vector(0, 0)
+
     this.subscribe()
 
-    this.pressed = false
     this.longTap = false
-    this.prevX = 0
     this.method = 0
-  }
-
-  updateOffset () {
-    var rect = this.view.canvas.getBoundingClientRect()
-    this.offset.x = rect.left
-    this.offset.y = rect.top
   }
 
   updateYExtremes () {
     var { min, max } = this.navigation
     var graph = this.graph
     var [x0, x1] = [min.position.x, max.position.x]
-    var [y0, y1] = this.graph.getYExtremes(x0, x1)
+    var [y0, y1] = graph.getYExtremes(x0, x1)
 
     min.accelerate(new Vector(x0, y0))
     max.accelerate(new Vector(x1, y1))
@@ -49,7 +44,7 @@ class Chart {
     }
   }
 
-  validate (x, y) {
+  validate ({ x, y }) {
     var graph = this.graph
     var xScale = graph.xScale
     var yScale = graph.yScale
@@ -59,19 +54,23 @@ class Chart {
     return x >= x0 && x <= x1 && y >= y0 && y <= y1
   }
 
-  prepare (x, y) {
-    x = x - this.offset.x
-    y = y - this.offset.y
+  tap (pointer) {
+    if (this.validate(pointer.startPosition)) {
+      pointer.event.preventDefault()
+    } else {
+      this.longTap = setTimeout(() => {
+        pointer.event.preventDefault()
+        this.tooltip.show(pointer.startPosition.x)
+      }, 125)
+    }
 
-    return { x, y }
-  }
-
-  tap (x) {
-    var canvas = this.view.canvas
+    var { x } = pointer.startPosition
     var navigation = this.navigation
     var xScale = navigation.graph.xScale
-    var start = xScale.get(navigation.min.position.x)
-    var end = xScale.get(navigation.max.position.x)
+    var minPos = navigation.min.position
+    var maxPos = navigation.max.position
+    var start = xScale.get(minPos.x)
+    var end = xScale.get(maxPos.x)
 
     if (Math.abs(start - x) < 10) {
       this.method = METHOD_RESIZE_LEFT
@@ -79,6 +78,7 @@ class Chart {
       this.method = METHOD_RESIZE_RIGHT
     } else if (start < x && end > x) {
       this.method = METHOD_DRAG
+      this.range = maxPos.x - minPos.x
     } else {
       this.method = METHOD_MOVE
     }
@@ -87,49 +87,51 @@ class Chart {
   drag (x) {
     var navigation = this.navigation
     var xScale = navigation.graph.xScale
-    var delta = x - this.prevX
-    var start = xScale.get(navigation.min.position.x)
-    var end = xScale.get(navigation.max.position.x)
+    var [min, max] = xScale.domain
+    var range = (max - min) * 0.1
+    var minPos = navigation.min.position
+    var maxPos = navigation.max.position
+    var start = xScale.get(minPos.x)
+    var end = xScale.get(maxPos.x)
+    var value
 
-    if (this.method === METHOD_RESIZE_LEFT) {
-      navigation.min.position.x = xScale.invert(start + delta)
+    if (this.method === METHOD_DRAG) {
+      value = xScale.invert(start + x)
+      value = Math.max(min, Math.min(min + this.range, value))
+      minPos.x = value
+      maxPos.x = value + this.range
+    } else if (this.method === METHOD_RESIZE_LEFT) {
+      value = xScale.invert(start + x)
+      value = Math.max(min, Math.min(maxPos.x - range, value))
+      minPos.x = value
     } else if (this.method === METHOD_RESIZE_RIGHT) {
-      navigation.max.position.x = xScale.invert(end + delta)
-    } else {
-      navigation.min.position.x = xScale.invert(start + delta)
-      navigation.max.position.x = xScale.invert(end + delta)
+      value = xScale.invert(end + x)
+      value = Math.max(minPos.x + range, Math.min(max, value))
+      maxPos.x = value
     }
 
     this.updateYExtremes()
-
-    this.prevX = x
   }
 
   subscribe () {
     var canvas = this.view.canvas
 
     dom.on(this.view.el, 'change', this)
-
-    dom.on(canvas, 'mousedown', this)
-    dom.on(canvas, 'mouseup', this)
-    dom.on(canvas, 'touchstart', this)
-    dom.on(canvas, 'touchend', this)
     dom.on(canvas, 'mousemove', this)
-    dom.on(canvas, 'touchmove', this)
     dom.on(canvas, 'mouseleave', this)
+    dom.on(canvas, 'touchend', this)
+    dom.on(canvas, 'touchcancel', this)
+    this.kinetic.subscribe(this.navigate.bind(this))
+    this.kinetic.ontap = this.tap.bind(this)
   }
 
   handleEvent (e) {
     switch (e.type) {
       case 'change': return this.handleChange(e)
-      case 'mousedown': return this.handleMousedown(e)
-      case 'touchstart': return this.handleTouchstart(e)
-      case 'mouseup': return this.handleMouseup(e)
-      case 'touchmove': return this.handleTouchmove(e)
-      case 'mousemove': return this.handleMousemove(e)
+      case 'mousemove': return this.showTooltip(e)
+      case 'mouseleave':
       case 'touchend':
-      case 'touchcancel': return this.handleTouchend(e)
-      case 'mouseleave': return this.handleMouseleave(e)
+      case 'touchcancel': return this.hideTooltip(e)
     }
   }
 
@@ -152,77 +154,39 @@ class Chart {
     }
   }
 
-  handleMousedown (e) {
-    var { x, y } = this.prepare(e.pageX, e.pageY)
-
-    if (this.validate(x, y)) {
-      this.pressed = true
-      this.prevX = x
-      this.tap(x)
+  showTooltip (e) {
+    var pos = this.kinetic.position(e).sub(this.kinetic.offset)
+    if (!this.validate(pos)) {
+      this.tooltip.show(pos.x)
+    } else {
+      this.hideTooltip()
     }
   }
 
-  handleMouseup (e) {
-    this.pressed = false
+  hideTooltip () {
+    clearTimeout(this.longTap)
+    this.longTap = null
+    this.tooltip.hide()
   }
 
-  handleMousemove (e) {
-    var { x, y } = this.prepare(e.pageX, e.pageY)
+  navigate (pointers) {
+    if (pointers.length === 1) {
+      var [pointer] = pointers
 
-    if (this.validate(x, y)) {
-      this.tooltip.hide()
-      if (this.pressed) {
-        this.drag(x)
+      if (this.validate(pointer.startPosition)) {
+        pointer.event.preventDefault()
+        this.hideTooltip()
+        this.drag(pointer.delta.x)
       }
-    } else {
-      this.tooltip.show(x)
+      else if (this.longTap) {
+        pointer.event.preventDefault()
+        this.tooltip.show(pointer.position.x)
+      }
     }
   }
 
-  handleTouchstart (e) {
-    var [touch] = e.targetTouches
-    var { x, y } = this.prepare(touch.pageX, touch.pageY)
-
-    if (this.validate(x, y)) {
-      e.preventDefault()
-      this.pressed = true
-      this.prevX = x
-      this.tap(x)
-    } else {
-      this.longTapTimeout = setTimeout(() => {
-        this.longTap = true
-        this.tooltip.show(x)
-      }, 125)
-    }
-  }
-
-  handleTouchmove (e) {
-    var [touch] = e.targetTouches
-
-    var { x, y } = this.prepare(e.pageX, e.pageY)
-
-    if (this.pressed && this.validate(x, y)) {
-      e.preventDefault()
-      this.drag(x)
-    } else if (this.longTap) {
-      e.preventDefault()
-      this.tooltip.show(x)
-    }
-  }
-
-  handleTouchend (e) {
-    e.preventDefault()
-    this.pressed = false
-    this.longTap = false
-    clearTimeout(this.longTapTimeout)
-    this.tooltip.hide()
-  }
-
-  handleMouseleave (e) {
-    this.tooltip.hide()
-  }
-
-  redraw (dt) {
+  update (dt, time) {
+    this.kinetic.digest(time)
     this.simulate(dt)
     this.renderer.redraw()
   }

@@ -101,12 +101,24 @@
     return this
   };
 
+  Vector.prototype.zero = function zero () {
+    this.x = 0;
+    this.y = 0;
+    return this
+  };
+
   Vector.prototype.mag = function mag () {
     return this.x * this.x + this.y * this.y
   };
 
   Vector.prototype.clone = function clone () {
     return new Vector(this.x, this.y)
+  };
+
+  Vector.prototype.lerp = function lerp (vector, t) {
+    var x = (1 - t) * this.x + t * vector.x;
+    var y = (1 - t) * this.y + t * vector.y;
+    return new Vector(x, y)
   };
 
   var Point = function Point (x, y) {
@@ -123,12 +135,12 @@
   };
 
   Point.prototype.simulate = function simulate (dt) {
-    if (!this.active) { return; }
+    if (!this.active) { return }
 
     var dist = Vector.sub(this.target, this.position);
     var velocity = this.velocity.clone();
 
-    velocity.scale(dt/200);
+    velocity.scale(dt / 200);
 
     if (dist.mag() < velocity.mag()) {
       this.velocity = dist;
@@ -630,9 +642,7 @@
 
     var xScale = nav.xScale;
     var width = this.body.clientWidth;
-    var ref = xScale.range;
-      var r0 = ref[0];
-      var r1 = ref[1];
+    var r1 = xScale.range[1];
     var offset = xScale.get(xData[this.idx]);
     var shift = -12;
 
@@ -699,29 +709,309 @@
     hide(this.el);
   };
 
+  var TRACK_THRESHOLD = 100;
+
+  var Pointer = function Pointer (id) {
+    this.id = id;
+    this.position = new Vector(0, 0);
+    this.delta = new Vector(0, 0);
+    this.velocity = new Vector(0, 0);
+    this.amplitude = new Vector(0, 0);
+    this.startPosition = new Vector(0, 0);
+    this.pressed = false;
+    this.activated = false;
+    this.swiped = false;
+    this.timestamp = 0;
+    this.trackTime = 0;
+    this.elapsed = 0;
+    this.event = null;
+  };
+
+  Pointer.prototype.tap = function tap (position, e) {
+    this.velocity = new Vector(0, 0);
+    this.amplitude = new Vector(0, 0);
+    this.startPosition = position;
+    this.timestamp = 0;
+    this.trackTime = 0;
+    this.elapsed = 0;
+    this.pressed = true;
+    this.swiped = false;
+    this.event = e;
+  };
+
+  Pointer.prototype.drag = function drag (position, e) {
+    this.position = position;
+    this.delta.add(this.position.clone().sub(this.startPosition));
+    this.startPosition = this.position;
+    this.activated = true;
+    this.event = e;
+  };
+
+  Pointer.prototype.launch = function launch (velocityThreshold, amplitudeFactor) {
+    if (this.velocity.mag() > velocityThreshold) {
+      this.amplitude = this.velocity.scale(amplitudeFactor);
+      this.swiped = true;
+    }
+    this.pressed = false;
+    this.trackTime = 0;
+  };
+
+  Pointer.prototype.track = function track (time, movingAvarageFilter) {
+    this.timestamp = this.timestamp || time;
+    this.trackTime = this.trackTime || time;
+    if (time - this.trackTime >= TRACK_THRESHOLD) {
+      this.elapsed = time - this.timestamp;
+      this.timestamp = time;
+      this.trackTime = 0;
+
+      var v = this.delta.clone().scale(movingAvarageFilter).scale(1 / (1 + this.elapsed));
+      this.velocity = v.lerp(this.velocity, 0.2);
+    }
+  };
+
+  Pointer.prototype.swipe = function swipe (time, decelerationRate, deltaThreshold) {
+    this.elapsed = time - this.timestamp;
+    this.delta = this.amplitude.clone().scale(Math.exp(-this.elapsed / decelerationRate));
+    if (this.delta.mag() > deltaThreshold) {
+      this.activated = true;
+    } else {
+      this.swiped = false;
+    }
+  };
+
+  Pointer.prototype.deactivate = function deactivate () {
+    this.delta.zero();
+    this.activated = false;
+  };
+
+  // iOS decelerationRate = normal
+  var DECELERATION_RATE = 325;
+  var VELOCITY_THRESHOLD = 100;
+  var AMPLITUDE_FACTOR = 0.8;
+  var DELTA_THRESHOLD = 0.5;
+  var MOVING_AVARAGE_FILTER = 200;
+
+  function activated (pointer) {
+    return pointer.activated
+  }
+
+  function pressed (pointer) {
+    return pointer.pressed
+  }
+
+  function alive (pointer) {
+    return pointer.activated || pointer.pressed
+  }
+
+  var mouseEventId = -1;
+
+  var Kinetic = function Kinetic (el) {
+    this.el = el;
+
+    this.pointers = [];
+    this.events = [];
+
+    this.swiped = false;
+    this.offset = new Vector(0, 0);
+
+    this.handleEvents();
+  };
+
+  Kinetic.prototype.position = function position (e) {
+    return new Vector(e.clientX, e.clientY)
+  };
+
+  Kinetic.prototype.subscribe = function subscribe (handler) {
+    this.events.push(handler);
+  };
+
+  Kinetic.prototype.unsubscribe = function unsubscribe (handler) {
+    var idx = this.events.indexOf(handler);
+    if (idx !== -1) {
+      this.events.splice(idx, 1);
+    }
+  };
+
+  Kinetic.prototype.track = function track (time) {
+    for (var i = 0; i < this.pointers.length; i++) {
+      var pointer = this.pointers[i];
+      if (pointer.pressed) {
+        pointer.track(time, MOVING_AVARAGE_FILTER);
+      }
+    }
+  };
+
+  Kinetic.prototype.notify = function notify () {
+    for (var i = 0; i < this.events.length; i++) {
+      var pointers = this.pointers.filter(activated);
+      if (pointers.length) {
+        this.events[i](pointers);
+      }
+    }
+  };
+
+  Kinetic.prototype.deactivate = function deactivate () {
+    for (var i = 0; i < this.pointers.length; i++) {
+      this.pointers[i].deactivate();
+    }
+  };
+
+  Kinetic.prototype.swipe = function swipe (time) {
+    for (var i = 0; i < this.pointers.length; i++) {
+      var pointer = this.pointers[i];
+      if (pointer.swiped) {
+        pointer.swipe(time, DECELERATION_RATE, DELTA_THRESHOLD);
+      }
+    }
+  };
+
+  Kinetic.prototype.collect = function collect () {
+    this.pointers = this.pointers.filter(alive);
+  };
+
+  Kinetic.prototype.digest = function digest (time) {
+    this.track(time);
+    this.notify();
+    this.deactivate();
+    this.swipe(time);
+    this.collect();
+  };
+
+  Kinetic.prototype.find = function find (id) {
+    var result = null;
+    for (var i = 0; i < this.pointers.length; i++) {
+      var pointer = this.pointers[i];
+      if (pointer.id === id) {
+        result = pointer;
+      }
+    }
+    if (!result) {
+      if (this.pointers.length === 1 && this.pointers[0].swiped) {
+        result = this.pointers[0];
+        result.id = id;
+      }
+    }
+    return result
+  };
+
+  Kinetic.prototype.add = function add (pointer) {
+    this.pointers.push(pointer);
+  };
+
+  Kinetic.prototype.handleEvents = function handleEvents () {
+    on(this.el, 'mousedown', this);
+    on(this.el, 'touchstart', this);
+    on(this.el, 'touchmove', this);
+    on(this.el, 'touchend', this);
+    on(this.el, 'touchcancel', this);
+  };
+
+  Kinetic.prototype.handleEvent = function handleEvent (e) {
+    switch (e.type) {
+      case 'mousedown': return this.mousedownHandler(e)
+      case 'mousemove': return this.mousemoveHandler(e)
+      case 'mouseup': return this.mouseupHandler(e)
+      case 'touchstart': return this.touchstartHandler(e)
+      case 'touchmove': return this.touchmoveHandler(e)
+      case 'touchend':
+      case 'touchcancel': return this.touchendHandler(e)
+    }
+  };
+
+  Kinetic.prototype.getId = function getId (e) {
+    if (e.identifier) {
+      return e.identifier
+    } else {
+      return mouseEventId
+    }
+  };
+
+  Kinetic.prototype.updateOffset = function updateOffset () {
+    var clientRect = this.el.getBoundingClientRect();
+    this.offset = new Vector(clientRect.left, clientRect.top);
+  };
+
+  Kinetic.prototype.tap = function tap (e, event) {
+
+    var id = this.getId(e);
+    var pointer = this.find(id);
+    if (!pointer) {
+      pointer = new Pointer(id);
+      this.add(pointer);
+    }
+    pointer.tap(this.position(e).sub(this.offset), event);
+
+    this.ontap(pointer);
+  };
+
+  Kinetic.prototype.drag = function drag (e, event) {
+    var position = this.position(e).sub(this.offset);
+    var id = this.getId(e);
+    var pointer = this.find(id);
+    pointer.drag(position, event);
+  };
+
+  Kinetic.prototype.release = function release (e) {
+    var id = this.getId(e);
+    var pointer = this.find(id);
+    pointer.launch(VELOCITY_THRESHOLD, AMPLITUDE_FACTOR);
+  };
+
+  Kinetic.prototype.mousedownHandler = function mousedownHandler (e) {
+    document.addEventListener('mousemove', this, true);
+    document.addEventListener('mouseup', this, true);
+
+    this.tap(e, e);
+  };
+
+  Kinetic.prototype.mousemoveHandler = function mousemoveHandler (e) {
+    if (e.type === 'mousemove' || this.pointers.filter(pressed).length) {
+      this.drag(e, e);
+    }
+  };
+
+  Kinetic.prototype.mouseupHandler = function mouseupHandler (e) {
+    document.removeEventListener('mousemove', this, true);
+    document.removeEventListener('mouseup', this, true);
+
+    this.release(e);
+  };
+
+  Kinetic.prototype.touchstartHandler = function touchstartHandler (e) {
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      this.tap(e.changedTouches[i], e);
+    }
+  };
+
+  Kinetic.prototype.touchmoveHandler = function touchmoveHandler (e) {
+    for (var i = 0; i < e.targetTouches.length; i++) {
+      this.drag(e.targetTouches[i], e);
+    }
+  };
+
+  Kinetic.prototype.touchendHandler = function touchendHandler (e) {
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      this.release(e.changedTouches[i]);
+    }
+  };
+
   var METHOD_RESIZE_LEFT = 1;
   var METHOD_RESIZE_RIGHT = 2;
   var METHOD_DRAG = 3;
+  var METHOD_MOVE = 4;
 
   var Chart = function Chart (element, graph) {
     this.graph = graph;
     this.navigation = new Navigation(graph);
     this.view = new View(element, graph);
     this.renderer = new Renderer(this.view.canvas, this.navigation);
+    this.kinetic = new Kinetic(this.view.canvas);
     this.tooltip = new Tooltip(this.view.canvas.parentNode, this.navigation);
-    this.offset = new Vector(0, 0);
+
     this.subscribe();
 
-    this.pressed = false;
     this.longTap = false;
-    this.prevX = 0;
     this.method = 0;
-  };
-
-  Chart.prototype.updateOffset = function updateOffset () {
-    var rect = this.view.canvas.getBoundingClientRect();
-    this.offset.x = rect.left;
-    this.offset.y = rect.top;
   };
 
   Chart.prototype.updateYExtremes = function updateYExtremes () {
@@ -732,7 +1022,7 @@
     var ref$1 = [min.position.x, max.position.x];
       var x0 = ref$1[0];
       var x1 = ref$1[1];
-    var ref$2 = this.graph.getYExtremes(x0, x1);
+    var ref$2 = graph.getYExtremes(x0, x1);
       var y0 = ref$2[0];
       var y1 = ref$2[1];
 
@@ -748,33 +1038,43 @@
     }
   };
 
-  Chart.prototype.validate = function validate (x, y) {
+  Chart.prototype.validate = function validate (ref) {
+      var x = ref.x;
+      var y = ref.y;
+
     var graph = this.graph;
     var xScale = graph.xScale;
     var yScale = graph.yScale;
-    var ref = xScale.range;
-      var x0 = ref[0];
-      var x1 = ref[1];
-    var ref$1 = yScale.range;
-      var y1 = ref$1[0];
-      var y0 = ref$1[1];
+    var ref$1 = xScale.range;
+      var x0 = ref$1[0];
+      var x1 = ref$1[1];
+    var ref$2 = yScale.range;
+      var y1 = ref$2[0];
+      var y0 = ref$2[1];
 
     return x >= x0 && x <= x1 && y >= y0 && y <= y1
   };
 
-  Chart.prototype.prepare = function prepare (x, y) {
-    x = x - this.offset.x;
-    y = y - this.offset.y;
+  Chart.prototype.tap = function tap (pointer) {
+      var this$1 = this;
 
-    return { x: x, y: y }
-  };
+    if (this.validate(pointer.startPosition)) {
+      pointer.event.preventDefault();
+    } else {
+      this.longTap = setTimeout(function () {
+        pointer.event.preventDefault();
+        this$1.tooltip.show(pointer.startPosition.x);
+      }, 125);
+    }
 
-  Chart.prototype.tap = function tap (x) {
-    var canvas = this.view.canvas;
+    var ref = pointer.startPosition;
+      var x = ref.x;
     var navigation = this.navigation;
     var xScale = navigation.graph.xScale;
-    var start = xScale.get(navigation.min.position.x);
-    var end = xScale.get(navigation.max.position.x);
+    var minPos = navigation.min.position;
+    var maxPos = navigation.max.position;
+    var start = xScale.get(minPos.x);
+    var end = xScale.get(maxPos.x);
 
     if (Math.abs(start - x) < 10) {
       this.method = METHOD_RESIZE_LEFT;
@@ -782,6 +1082,7 @@
       this.method = METHOD_RESIZE_RIGHT;
     } else if (start < x && end > x) {
       this.method = METHOD_DRAG;
+      this.range = maxPos.x - minPos.x;
     } else {
       this.method = METHOD_MOVE;
     }
@@ -790,49 +1091,53 @@
   Chart.prototype.drag = function drag (x) {
     var navigation = this.navigation;
     var xScale = navigation.graph.xScale;
-    var delta = x - this.prevX;
-    var start = xScale.get(navigation.min.position.x);
-    var end = xScale.get(navigation.max.position.x);
+    var ref = xScale.domain;
+      var min = ref[0];
+      var max = ref[1];
+    var range = (max - min) * 0.1;
+    var minPos = navigation.min.position;
+    var maxPos = navigation.max.position;
+    var start = xScale.get(minPos.x);
+    var end = xScale.get(maxPos.x);
+    var value;
 
-    if (this.method === METHOD_RESIZE_LEFT) {
-      navigation.min.position.x = xScale.invert(start + delta);
+    if (this.method === METHOD_DRAG) {
+      value = xScale.invert(start + x);
+      value = Math.max(min, Math.min(min + this.range, value));
+      minPos.x = value;
+      maxPos.x = value + this.range;
+    } else if (this.method === METHOD_RESIZE_LEFT) {
+      value = xScale.invert(start + x);
+      value = Math.max(min, Math.min(maxPos.x - range, value));
+      minPos.x = value;
     } else if (this.method === METHOD_RESIZE_RIGHT) {
-      navigation.max.position.x = xScale.invert(end + delta);
-    } else {
-      navigation.min.position.x = xScale.invert(start + delta);
-      navigation.max.position.x = xScale.invert(end + delta);
+      value = xScale.invert(end + x);
+      value = Math.max(minPos.x + range, Math.min(max, value));
+      maxPos.x = value;
     }
 
     this.updateYExtremes();
-
-    this.prevX = x;
   };
 
   Chart.prototype.subscribe = function subscribe () {
     var canvas = this.view.canvas;
 
     on(this.view.el, 'change', this);
-
-    on(canvas, 'mousedown', this);
-    on(canvas, 'mouseup', this);
-    on(canvas, 'touchstart', this);
-    on(canvas, 'touchend', this);
     on(canvas, 'mousemove', this);
-    on(canvas, 'touchmove', this);
     on(canvas, 'mouseleave', this);
+    on(canvas, 'touchend', this);
+    on(canvas, 'touchcancel', this);
+    this.kinetic.subscribe(this.navigate.bind(this));
+    this.kinetic.ontap = this.tap.bind(this);
   };
 
   Chart.prototype.handleEvent = function handleEvent (e) {
     switch (e.type) {
       case 'change': return this.handleChange(e)
-      case 'mousedown': return this.handleMousedown(e)
-      case 'touchstart': return this.handleTouchstart(e)
-      case 'mouseup': return this.handleMouseup(e)
-      case 'touchmove': return this.handleTouchmove(e)
-      case 'mousemove': return this.handleMousemove(e)
+      case 'mousemove': return this.showTooltip(e)
+      case 'mouseleave':
       case 'touchend':
-      case 'touchcancel': return this.handleTouchend(e)
-      case 'mouseleave': return this.handleMouseleave(e)
+      case 'touchcancel': return this.hideTooltip(e)
     }
   };
 
@@ -855,89 +1160,39 @@
     }
   };
 
-  Chart.prototype.handleMousedown = function handleMousedown (e) {
-    var ref = this.prepare(e.pageX, e.pageY);
-      var x = ref.x;
-      var y = ref.y;
-
-    if (this.validate(x, y)) {
-      this.pressed = true;
-      this.prevX = x;
-      this.tap(x);
+  Chart.prototype.showTooltip = function showTooltip (e) {
+    var pos = this.kinetic.position(e).sub(this.kinetic.offset);
+    if (!this.validate(pos)) {
+      this.tooltip.show(pos.x);
+    } else {
+      this.hideTooltip();
     }
   };
 
-  Chart.prototype.handleMouseup = function handleMouseup (e) {
-    this.pressed = false;
+  Chart.prototype.hideTooltip = function hideTooltip () {
+    clearTimeout(this.longTap);
+    this.longTap = null;
+    this.tooltip.hide();
   };
 
-  Chart.prototype.handleMousemove = function handleMousemove (e) {
-    var ref = this.prepare(e.pageX, e.pageY);
-      var x = ref.x;
-      var y = ref.y;
+  Chart.prototype.navigate = function navigate (pointers) {
+    if (pointers.length === 1) {
+      var pointer = pointers[0];
 
-    if (this.validate(x, y)) {
-      this.tooltip.hide();
-      if (this.pressed) {
-        this.drag(x);
+      if (this.validate(pointer.startPosition)) {
+        pointer.event.preventDefault();
+        this.hideTooltip();
+        this.drag(pointer.delta.x);
       }
-    } else {
-      this.tooltip.show(x);
+      else if (this.longTap) {
+        pointer.event.preventDefault();
+        this.tooltip.show(pointer.position.x);
+      }
     }
   };
 
-  Chart.prototype.handleTouchstart = function handleTouchstart (e) {
-      var this$1 = this;
-
-    var ref = e.targetTouches;
-      var touch = ref[0];
-    var ref$1 = this.prepare(touch.pageX, touch.pageY);
-      var x = ref$1.x;
-      var y = ref$1.y;
-
-    if (this.validate(x, y)) {
-      e.preventDefault();
-      this.pressed = true;
-      this.prevX = x;
-      this.tap(x);
-    } else {
-      this.longTapTimeout = setTimeout(function () {
-        this$1.longTap = true;
-        this$1.tooltip.show(x);
-      }, 125);
-    }
-  };
-
-  Chart.prototype.handleTouchmove = function handleTouchmove (e) {
-    var ref = e.targetTouches;
-      var touch = ref[0];
-
-    var ref$1 = this.prepare(e.pageX, e.pageY);
-      var x = ref$1.x;
-      var y = ref$1.y;
-
-    if (this.pressed && this.validate(x, y)) {
-      e.preventDefault();
-      this.drag(x);
-    } else if (this.longTap) {
-      e.preventDefault();
-      this.tooltip.show(x);
-    }
-  };
-
-  Chart.prototype.handleTouchend = function handleTouchend (e) {
-    e.preventDefault();
-    this.pressed = false;
-    this.longTap = false;
-    clearTimeout(this.longTapTimeout);
-    this.tooltip.hide();
-  };
-
-  Chart.prototype.handleMouseleave = function handleMouseleave (e) {
-    this.tooltip.hide();
-  };
-
-  Chart.prototype.redraw = function redraw (dt) {
+  Chart.prototype.update = function update (dt, time) {
+    this.kinetic.digest(time);
     this.simulate(dt);
     this.renderer.redraw();
   };
@@ -1012,7 +1267,7 @@
 
   App.prototype.handleScroll = function handleScroll () {
     for (var i = 0; i < this.charts.length; i++) {
-      this.charts[i].updateOffset();
+      this.charts[i].kinetic.updateOffset();
     }
   };
 
@@ -1025,7 +1280,7 @@
   App.prototype.digest = function digest (time) {
     this.prevTime = this.prevTime || time;
     for (var i = 0; i < this.charts.length; i++) {
-      this.charts[i].redraw(time - this.prevTime);
+      this.charts[i].update(time - this.prevTime, time);
     }
     this.prevTime = time;
   };
