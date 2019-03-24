@@ -152,7 +152,8 @@
     }
   };
 
-  var Graph = function Graph () {
+  var Graph = function Graph (title) {
+    this.title = title;
     this.xData = [];
     this.series = [];
     this.seriesIndex = {};
@@ -309,6 +310,7 @@
 
   View.prototype.init = function init () {
     var body = [
+      ("<div class=\"title cell\">" + (this.graph.title) + "</div>"),
       "<div class=\"cell container\">",
       "<div class=\"graph\">",
       "<canvas></canvas>",
@@ -375,7 +377,7 @@
   var DAY = 24 * 60 * 60 * 1000;
 
   function abbreviate (value) {
-    var suffixes = ['', 'K', 'M', 'B','T'];
+    var suffixes = ['', 'K', 'M', 'B', 'T'];
     var suffixNum = 0;
 
     while (value >= 1000) {
@@ -384,7 +386,7 @@
     }
 
     value += suffixes[suffixNum];
-    return value;
+    return value
   }
 
   var pixelRatio = window.devicePixelRatio || 1;
@@ -423,11 +425,11 @@
       var navHeight = this.height * 0.15;
       var xGridHeight = 40;
 
-      this.graph.yScale.setRange(this.height - 2, this.height - navHeight);
+      this.graph.yScale.setRange(this.height, this.height - navHeight);
       this.navigation.yScale.setRange(this.height - navHeight - xGridHeight, 0);
 
-      this.graph.xScale.setRange(0, this.width - 2);
-      this.navigation.xScale.setRange(0, this.width - 2);
+      this.graph.xScale.setRange(0, this.width);
+      this.navigation.xScale.setRange(0, this.width);
 
       this.enqueue();
     }
@@ -480,7 +482,7 @@
 
     ctx.fillStyle = this.theme.gridTextColor;
     ctx.textBaseline = 'middle';
-    ctx.font = '14px Tahoma, Helvetica, sans-serif';
+    ctx.font = '12px Tahoma, Helvetica, sans-serif';
 
     if (width <= 480) {
       divider = 3;
@@ -521,29 +523,35 @@
       var max = ref$1[1];
     var step = Math.pow(10, Math.floor(max - min).toString().length - 1);
 
-    console.log(min, max, step);
-
     if ((max - min) / step < 4) {
       step /= 2;
     }
 
-    console.log(step);
+    var bot = yScale.range[0];
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
     ctx.beginPath();
 
-    for (var i = min - min % step; i < max; i += step) {
+    for (i = min - min % step; i < max; i += step) {
       var position = yScale.get(i);
-      if (position < yScale.range[0]) {
+      if (position < bot) {
         ctx.moveTo(0, position);
-        ctx.lineTo(xScale.range[1], position);
+        ctx.lineTo(width, position);
         ctx.fillText(abbreviate(i), 0, position);
       }
     }
 
     ctx.lineWidth = 1;
     ctx.strokeStyle = this.theme.gridColor;
+    ctx.stroke();
+
+    ctx.beginPath();
+
+    ctx.moveTo(0, bot);
+    ctx.lineTo(width, bot);
+
+    ctx.strokeStyle = this.theme.borderColor;
     ctx.stroke();
   };
 
@@ -603,6 +611,7 @@
       }
 
       ctx.globalAlpha = Number(opaque);
+      ctx.lineJoin = 'round';
       ctx.strokeStyle = current.color;
       ctx.stroke();
     }
@@ -793,7 +802,7 @@
     css(this.body, 'transform', ("translate(" + shift + "px)"));
 
     css(this.el, 'transform', ("translate(" + offset + "px)"));
-    css(this.el, 'height', ((yScale.range[0] - yScale.range[1]) + "px"));
+    css(this.el, 'height', ((yScale.range[0] - 1) + "px"));
   };
 
   Tooltip.prototype.renderDate = function renderDate () {
@@ -834,12 +843,19 @@
 
   Tooltip.prototype.show = function show$1 (x) {
     var nav = this.navigation;
+    var ref = nav.xScale.domain;
+      var min = ref[0];
+      var max = ref[1];
     var value = nav.xScale.invert(x);
     var idx = nav.graph.findXIndex(value);
 
-    if (idx !== -1) {
+    value = nav.graph.xData[idx];
+
+    if (min <= value && value <= max && idx !== -1) {
       show(this.el);
       this.setIndex(idx);
+    } else {
+      this.hide();
     }
   };
 
@@ -1045,6 +1061,7 @@
   };
 
   Kinetic.prototype.handleEvent = function handleEvent (e) {
+    e.stopPropagation();
     switch (e.type) {
       case 'mousedown': return this.mousedownHandler(e)
       case 'mousemove': return this.mousemoveHandler(e)
@@ -1231,7 +1248,7 @@
     var ref = xScale.domain;
       var min = ref[0];
       var max = ref[1];
-    var range = (max - min) * 0.1;
+    var range = (max - min) * 0.15;
     var minPos = navigation.min.position;
     var maxPos = navigation.max.position;
     var start = xScale.get(minPos.x);
@@ -1260,6 +1277,7 @@
     var canvas = this.view.canvas;
 
     on(this.view.el, 'change', this);
+    on(this.view.el, 'click', this);
     on(canvas, 'mousemove', this);
     on(canvas, 'mouseleave', this);
     on(canvas, 'touchend', this);
@@ -1272,6 +1290,7 @@
     switch (e.type) {
       case 'change': return this.handleChange(e)
       case 'mousemove': return this.showTooltip(e)
+      case 'click':
       case 'mouseleave':
       case 'touchend':
       case 'touchcancel': return this.hideTooltip(e)
@@ -1292,8 +1311,10 @@
 
       if (this.graph.hasData()) {
         hide(this.view.placeholder);
+        css(this.view.canvas, 'cursor', 'pointer');
       } else {
         show(this.view.placeholder);
+        css(this.view.canvas, 'cursor', 'default');
       }
     }
   };
@@ -1323,7 +1344,9 @@
         this.drag(pointer.delta.x);
       } else if (this.longTap) {
         pointer.event.preventDefault();
-        this.tooltip.show(pointer.position.x);
+        if (this.graph.hasData()) {
+          this.tooltip.show(pointer.position.x);
+        }
       } else {
         this.hideTooltip();
       }
@@ -1340,12 +1363,14 @@
     {
       gridTextColor: '#97a3ab',
       gridColor: '#f6f7f9',
+      borderColor: '#e1e8ec',
       overlayColor: 'rgba(245, 249, 251, 0.8)',
       navigationColor: '#ddeaf3'
     },
     {
       gridTextColor: '#475768',
       gridColor: '#293544',
+      borderColor: '#3b4a5a',
       overlayColor: 'rgba(31, 42, 56, 0.8)',
       navigationColor: '#3f556a'
     }
@@ -1380,8 +1405,8 @@
   App.prototype.parse = function parse (response) {
       var this$1 = this;
 
-    response.forEach(function (row) {
-      var graph = new Graph();
+    response.forEach(function (row, i) {
+      var graph = new Graph(("Chart #" + i));
 
       row.columns.forEach(function (col) {
         var id = col[0];
@@ -1429,8 +1454,10 @@
 
     if (this.theme) {
       addClass(this.element, 'dark');
+      text(this.switcher, 'Switch to Day Mode');
     } else {
       removeClass(this.element, 'dark');
+      text(this.switcher, 'Switch to Night Mode');
     }
 
     for (var i = 0; i < this.charts.length; i++) {

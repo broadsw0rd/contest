@@ -1,5 +1,5 @@
 export function abbreviate (value) {
-  var suffixes = ['', 'K', 'M', 'B','T']
+  var suffixes = ['', 'K', 'M', 'B', 'T']
   var suffixNum = 0
 
   while (value >= 1000) {
@@ -8,5 +8,5 @@ export function abbreviate (value) {
   }
 
   value += suffixes[suffixNum]
-  return value;
+  return value
 }

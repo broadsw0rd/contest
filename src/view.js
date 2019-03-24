@@ -12,6 +12,7 @@ class View {
 
   init () {
     var body = [
+      `<div class="title cell">${this.graph.title}</div>`,
       `<div class="cell container">`,
       `<div class="graph">`,
       `<canvas></canvas>`,

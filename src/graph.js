@@ -2,7 +2,8 @@ import Scale from './scale.js'
 import Point from './point.js'
 
 class Graph {
-  constructor () {
+  constructor (title) {
+    this.title = title
     this.xData = []
     this.series = []
     this.seriesIndex = {}

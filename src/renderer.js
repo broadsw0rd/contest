@@ -38,11 +38,11 @@ class Renderer {
       var navHeight = this.height * 0.15
       var xGridHeight = 40
 
-      this.graph.yScale.setRange(this.height - 2, this.height - navHeight)
+      this.graph.yScale.setRange(this.height, this.height - navHeight)
       this.navigation.yScale.setRange(this.height - navHeight - xGridHeight, 0)
 
-      this.graph.xScale.setRange(0, this.width - 2)
-      this.navigation.xScale.setRange(0, this.width - 2)
+      this.graph.xScale.setRange(0, this.width)
+      this.navigation.xScale.setRange(0, this.width)
 
       this.enqueue()
     }
@@ -93,7 +93,7 @@ class Renderer {
 
     ctx.fillStyle = this.theme.gridTextColor
     ctx.textBaseline = 'middle'
-    ctx.font = '14px Tahoma, Helvetica, sans-serif'
+    ctx.font = '12px Tahoma, Helvetica, sans-serif'
 
     if (width <= 480) {
       divider = 3
@@ -136,23 +136,31 @@ class Renderer {
       step /= 2
     }
 
-    console.log(step)
+    var bot = yScale.range[0]
 
     ctx.textAlign = 'left'
     ctx.textBaseline = 'bottom'
     ctx.beginPath()
 
-    for (var i = min - min % step; i < max; i += step) {
+    for (i = min - min % step; i < max; i += step) {
       var position = yScale.get(i)
-      if (position < yScale.range[0]) {
+      if (position < bot) {
         ctx.moveTo(0, position)
-        ctx.lineTo(xScale.range[1], position)
+        ctx.lineTo(width, position)
         ctx.fillText(number.abbreviate(i), 0, position)
       }
     }
 
     ctx.lineWidth = 1
     ctx.strokeStyle = this.theme.gridColor
+    ctx.stroke()
+
+    ctx.beginPath()
+
+    ctx.moveTo(0, bot)
+    ctx.lineTo(width, bot)
+
+    ctx.strokeStyle = this.theme.borderColor
     ctx.stroke()
   }
 
@@ -212,6 +220,7 @@ class Renderer {
       }
 
       ctx.globalAlpha = Number(opaque)
+      ctx.lineJoin = 'round'
       ctx.strokeStyle = current.color
       ctx.stroke()
     }

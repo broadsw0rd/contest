@@ -92,7 +92,7 @@ class Tooltip {
     dom.css(this.body, 'transform', `translate(${shift}px)`)
 
     dom.css(this.el, 'transform', `translate(${offset}px)`)
-    dom.css(this.el, 'height', `${yScale.range[0] - yScale.range[1]}px`)
+    dom.css(this.el, 'height', `${yScale.range[0] - 1}px`)
   }
 
   renderDate () {
@@ -133,12 +133,17 @@ class Tooltip {
 
   show (x) {
     var nav = this.navigation
+    var [min, max] = nav.xScale.domain
     var value = nav.xScale.invert(x)
     var idx = nav.graph.findXIndex(value)
 
-    if (idx !== -1) {
+    value = nav.graph.xData[idx]
+
+    if (min <= value && value <= max && idx !== -1) {
       dom.show(this.el)
       this.setIndex(idx)
+    } else {
+      this.hide()
     }
   }
 

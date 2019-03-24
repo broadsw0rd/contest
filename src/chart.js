@@ -87,7 +87,7 @@ class Chart {
     var navigation = this.navigation
     var xScale = navigation.graph.xScale
     var [min, max] = xScale.domain
-    var range = (max - min) * 0.1
+    var range = (max - min) * 0.15
     var minPos = navigation.min.position
     var maxPos = navigation.max.position
     var start = xScale.get(minPos.x)
@@ -116,6 +116,7 @@ class Chart {
     var canvas = this.view.canvas
 
     dom.on(this.view.el, 'change', this)
+    dom.on(this.view.el, 'click', this)
     dom.on(canvas, 'mousemove', this)
     dom.on(canvas, 'mouseleave', this)
     dom.on(canvas, 'touchend', this)
@@ -128,6 +129,7 @@ class Chart {
     switch (e.type) {
       case 'change': return this.handleChange(e)
       case 'mousemove': return this.showTooltip(e)
+      case 'click':
       case 'mouseleave':
       case 'touchend':
       case 'touchcancel': return this.hideTooltip(e)
@@ -148,8 +150,10 @@ class Chart {
 
       if (this.graph.hasData()) {
         dom.hide(this.view.placeholder)
+        dom.css(this.view.canvas, 'cursor', 'pointer')
       } else {
         dom.show(this.view.placeholder)
+        dom.css(this.view.canvas, 'cursor', 'default')
       }
     }
   }
@@ -179,7 +183,9 @@ class Chart {
         this.drag(pointer.delta.x)
       } else if (this.longTap) {
         pointer.event.preventDefault()
-        this.tooltip.show(pointer.position.x)
+        if (this.graph.hasData()) {
+          this.tooltip.show(pointer.position.x)
+        }
       } else {
         this.hideTooltip()
       }

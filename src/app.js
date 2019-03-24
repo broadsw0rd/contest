@@ -30,8 +30,8 @@ class App {
   }
 
   parse (response) {
-    response.forEach(row => {
-      var graph = new Graph()
+    response.forEach((row, i) => {
+      var graph = new Graph(`Chart #${i}`)
 
       row.columns.forEach(col => {
         var [id, ...data] = col
@@ -78,8 +78,10 @@ class App {
 
     if (this.theme) {
       dom.addClass(this.element, 'dark')
+      dom.text(this.switcher, 'Switch to Day Mode')
     } else {
       dom.removeClass(this.element, 'dark')
+      dom.text(this.switcher, 'Switch to Night Mode')
     }
 
     for (var i = 0; i < this.charts.length; i++) {

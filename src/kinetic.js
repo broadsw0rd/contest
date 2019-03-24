@@ -126,6 +126,7 @@ class Kinetic {
   }
 
   handleEvent (e) {
+    e.stopPropagation()
     switch (e.type) {
       case 'mousedown': return this.mousedownHandler(e)
       case 'mousemove': return this.mousemoveHandler(e)
