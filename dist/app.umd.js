@@ -202,7 +202,7 @@
       for (var j = 0; j < xData.length; j++) {
         var xDatum = xData[j];
 
-        if (start <= xDatum&& xDatum <= end) {
+        if (start <= xDatum && xDatum <= end) {
           var yDatum = yData[j];
 
           min = min || yDatum;
@@ -266,6 +266,10 @@
 
   function addClass (el, name) {
     el.classList.add(name);
+  }
+
+  function removeClass (el, name) {
+    el.classList.remove(name);
   }
 
   function html (el, content) {
@@ -370,11 +374,12 @@
 
   var pixelRatio = window.devicePixelRatio || 1;
 
-  var Renderer = function Renderer (canvas, navigation) {
+  var Renderer = function Renderer (canvas, navigation, theme) {
     this.ctx = canvas.getContext('2d');
     this.el = canvas.parentNode;
     this.navigation = navigation;
     this.graph = navigation.graph;
+    this.setTheme(theme);
     this.scale();
   };
 
@@ -428,8 +433,13 @@
     this.inQueue = false;
   };
 
+  Renderer.prototype.setTheme = function setTheme (theme) {
+    this.theme = theme;
+    this.enqueue();
+  };
+
   Renderer.prototype.draw = function draw () {
-    if (this.graph.hasData()) { 
+    if (this.graph.hasData()) {
       this.drawGrid();
       this.drawNav();
       this.drawSeries();
@@ -444,8 +454,6 @@
     var width = this.width;
     var graph = this.graph;
     var navigation = this.navigation;
-    var min = navigation.min.position.x;
-    var max = navigation.max.position.x;
     var xData = graph.xData;
     var xScale = navigation.xScale;
     var yScale = navigation.yScale;
@@ -461,7 +469,7 @@
       count += 1;
     }
 
-    ctx.fillStyle = '#97a3ab';
+    ctx.fillStyle = this.theme.gridTextColor;
     ctx.textBaseline = 'middle';
     ctx.font = '14px Tahoma, Helvetica, sans-serif';
 
@@ -487,8 +495,6 @@
       ctx.textAlign = align;
       ctx.fillText(formatShort(datum), xScale.get(datum), y);
     }
-
-
   };
 
   Renderer.prototype.drawSeries = function drawSeries () {
@@ -569,13 +575,13 @@
     var height = y1 - y0;
 
     // window
-    ctx.strokeStyle = '#ddeaf3';
+    ctx.strokeStyle = this.theme.navigationColor;
     ctx.lineWidth = 2;
 
     ctx.strokeRect(x0, y0 + 1, x1 - x0, height - 2);
 
     // handles
-    ctx.fillStyle = '#ddeaf3';
+    ctx.fillStyle = this.theme.navigationColor;
     ctx.beginPath();
     ctx.rect(x0, y0, 6, height);
     ctx.rect(x1 - 6, y0, 6, height);
@@ -597,7 +603,7 @@
       var y0 = ref[1];
     var height = y1 - y0;
 
-    ctx.fillStyle = 'rgba(245, 249, 251, 0.8)';
+    ctx.fillStyle = this.theme.overlayColor;
     ctx.beginPath();
     ctx.rect(0, y0, x0, height);
     ctx.rect(x1, y0, xScale.range[1] - x1, height);
@@ -1014,7 +1020,6 @@
   };
 
   Kinetic.prototype.tap = function tap (e, event) {
-
     var id = this.getId(e);
     var pointer = this.find(id);
     if (!pointer) {
@@ -1158,9 +1163,9 @@
     var start = xScale.get(minPos.x);
     var end = xScale.get(maxPos.x);
 
-    if (Math.abs(start - x) < 10) {
+    if (Math.abs(start - x) < 20) {
       this.method = METHOD_RESIZE_LEFT;
-    } else if (Math.abs(end - x) < 10) {
+    } else if (Math.abs(end - x) < 20) {
       this.method = METHOD_RESIZE_RIGHT;
     } else if (start < x && end > x) {
       this.method = METHOD_DRAG;
@@ -1266,8 +1271,7 @@
         pointer.event.preventDefault();
         this.hideTooltip();
         this.drag(pointer.delta.x);
-      }
-      else if (this.longTap) {
+      } else if (this.longTap) {
         pointer.event.preventDefault();
         this.tooltip.show(pointer.position.x);
       } else {
@@ -1282,16 +1286,34 @@
     this.renderer.redraw();
   };
 
+  var themes = [
+    {
+      gridTextColor: '#97a3ab',
+      gridColor: '#f6f7f9',
+      overlayColor: 'rgba(245, 249, 251, 0.8)',
+      navigationColor: '#ddeaf3'
+    },
+    {
+      gridTextColor: '#475768',
+      gridColor: '#293544',
+      overlayColor: 'rgba(31, 42, 56, 0.8)',
+      navigationColor: '#3f556a'
+    }
+  ];
+
   var App = function App (element) {
     this.element = element;
     this.charts = [];
     this.prevTime = 0;
+    this.switcher = select(this.element, '.switcher');
+    this.theme = 0;
 
     this.subscribe();
   };
 
   App.prototype.addChart = function addChart (chart) {
     this.charts.push(chart);
+    chart.renderer.setTheme(themes[this.theme]);
   };
 
   App.prototype.load = function load () {
@@ -1337,6 +1359,7 @@
   };
 
   App.prototype.subscribe = function subscribe () {
+    on(this.switcher, 'click', this);
     on(window.document.body, 'scroll', this);
     on(window, 'resize', this);
     on(window, 'orientationchange', this);
@@ -1344,9 +1367,24 @@
 
   App.prototype.handleEvent = function handleEvent (e) {
     switch (e.type) {
+      case 'click': return this.handlerColorSwitch()
       case 'scroll': return this.handleScroll(e)
       case 'resize': return this.handleResize(e)
       case 'orientationchange': return this.handleResize(e)
+    }
+  };
+
+  App.prototype.handlerColorSwitch = function handlerColorSwitch () {
+    this.theme = Number(!this.theme);
+
+    if (this.theme) {
+      addClass(this.element, 'dark');
+    } else {
+      removeClass(this.element, 'dark');
+    }
+
+    for (var i = 0; i < this.charts.length; i++) {
+      this.charts[i].renderer.setTheme(themes[this.theme]);
     }
   };
 

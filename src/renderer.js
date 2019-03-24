@@ -3,11 +3,12 @@ import * as date from './date.js'
 var pixelRatio = window.devicePixelRatio || 1
 
 class Renderer {
-  constructor (canvas, navigation) {
+  constructor (canvas, navigation, theme) {
     this.ctx = canvas.getContext('2d')
     this.el = canvas.parentNode
     this.navigation = navigation
     this.graph = navigation.graph
+    this.setTheme(theme)
     this.scale()
   }
 
@@ -61,6 +62,11 @@ class Renderer {
     this.inQueue = false
   }
 
+  setTheme (theme) {
+    this.theme = theme
+    this.enqueue()
+  }
+
   draw () {
     if (this.graph.hasData()) {
       this.drawGrid()
@@ -90,7 +96,7 @@ class Renderer {
       count += 1
     }
 
-    ctx.fillStyle = '#97a3ab'
+    ctx.fillStyle = this.theme.gridTextColor
     ctx.textBaseline = 'middle'
     ctx.font = '14px Tahoma, Helvetica, sans-serif'
 
@@ -194,13 +200,13 @@ class Renderer {
     var height = y1 - y0
 
     // window
-    ctx.strokeStyle = '#ddeaf3'
+    ctx.strokeStyle = this.theme.navigationColor
     ctx.lineWidth = 2
 
     ctx.strokeRect(x0, y0 + 1, x1 - x0, height - 2)
 
     // handles
-    ctx.fillStyle = '#ddeaf3'
+    ctx.fillStyle = this.theme.navigationColor
     ctx.beginPath()
     ctx.rect(x0, y0, 6, height)
     ctx.rect(x1 - 6, y0, 6, height)
@@ -220,7 +226,7 @@ class Renderer {
     var [y1, y0] = yScale.range
     var height = y1 - y0
 
-    ctx.fillStyle = 'rgba(245, 249, 251, 0.8)'
+    ctx.fillStyle = this.theme.overlayColor
     ctx.beginPath()
     ctx.rect(0, y0, x0, height)
     ctx.rect(x1, y0, xScale.range[1] - x1, height)
